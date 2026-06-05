@@ -16,6 +16,8 @@ from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from typing import Optional, List
 
 # Load env variables
 load_dotenv()
@@ -175,8 +177,14 @@ class QueueWriter:
 # Thread lock to prevent concurrent crew executions
 crew_lock = threading.Lock()
 
-@app.get("/api/run")
-def run_crew(topic: str = Query(..., description="Topic to run market research on")):
+class CampaignRequest(BaseModel):
+    topic: Optional[str] = None
+    blog_draft: Optional[str] = None
+    research_report: Optional[str] = None
+    enabled_agents: List[str] = ["researcher", "writer", "seo"]
+
+@app.post("/api/run")
+def run_crew(request: CampaignRequest):
     # Try to acquire lock non-blockingly
     acquired = crew_lock.acquire(blocking=False)
     if not acquired:
@@ -200,8 +208,19 @@ def run_crew(topic: str = Query(..., description="Topic to run market research o
         crew = None
         try:
             reset_termination()
-            inputs = {"topic": topic}
-            crew = create_marketing_crew()
+            inputs = {}
+            if request.topic:
+                inputs["topic"] = request.topic
+            if request.blog_draft:
+                inputs["blog_draft"] = request.blog_draft
+            if request.research_report:
+                inputs["research_report"] = request.research_report
+                
+            crew = create_marketing_crew(
+                enabled_agents=request.enabled_agents,
+                blog_draft=request.blog_draft,
+                research_report=request.research_report
+            )
             res = crew.kickoff(inputs=inputs)
             execution_result["output"] = str(res)
             execution_result["status"] = "success"

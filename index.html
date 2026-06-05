@@ -380,6 +380,133 @@
       text-align: center;
     }
 
+    /* Agent Selection Configuration */
+    .agent-selector-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.875rem;
+      padding: 1.25rem;
+    }
+    
+    .agent-selector-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+
+    .agent-toggles-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+
+    @media (min-width: 640px) {
+      .agent-toggles-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .agent-toggle-card {
+      background: rgba(8, 12, 24, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0.65rem;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+
+    .agent-toggle-card:hover {
+      border-color: rgba(129, 140, 248, 0.25);
+      background: rgba(129, 140, 248, 0.02);
+    }
+
+    .agent-toggle-card.active {
+      border-color: rgba(129, 140, 248, 0.45);
+      background: rgba(129, 140, 248, 0.06);
+      box-shadow: 0 0 10px rgba(129, 140, 248, 0.05);
+    }
+
+    .agent-toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .agent-toggle-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .agent-toggle-role {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+
+    .agent-checkbox-wrapper {
+      position: relative;
+      width: 34px;
+      height: 20px;
+    }
+
+    .agent-checkbox-wrapper input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .agent-checkbox-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #1e293b;
+      transition: .3s;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .agent-checkbox-slider:before {
+      position: absolute;
+      content: "";
+      height: 12px;
+      width: 12px;
+      left: 3px;
+      bottom: 3px;
+      background-color: #64748b;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .agent-checkbox-slider {
+      background-color: rgba(129, 140, 248, 0.2);
+      border-color: #818cf8;
+    }
+
+    input:checked + .agent-checkbox-slider:before {
+      transform: translateX(14px);
+      background-color: #818cf8;
+      box-shadow: 0 0 4px #818cf8;
+    }
+
+    /* Pipeline updates */
+    .pipeline-node.node-skipped {
+      border-color: rgba(255, 255, 255, 0.06);
+      color: #475569;
+      background: rgba(255, 255, 255, 0.01);
+      opacity: 0.45;
+    }
+
     .pipeline-connector {
       display: none;
       width: 2rem;
@@ -821,6 +948,15 @@
       const [activeTool, setActiveTool] = useState(null);
       const [activeTask, setActiveTask] = useState(null);
       
+      // Agent Selector States
+      const [enabledAgents, setEnabledAgents] = useState({
+        researcher: true,
+        writer: true,
+        seo: true
+      });
+      const [blogDraft, setBlogDraft] = useState('');
+      const [researchReport, setResearchReport] = useState('');
+      
       // Task progress tracker states
       const [taskStatus, setTaskStatus] = useState({
         research: 'pending',
@@ -877,9 +1013,29 @@
         }
       };
 
-      const handleSubmit = (e) => {
+      const toggleAgent = (key) => {
+        if (running) return;
+        setEnabledAgents(prev => {
+          const next = { ...prev, [key]: !prev[key] };
+          // Ensure at least one agent is enabled
+          if (!next.researcher && !next.writer && !next.seo) {
+            return prev;
+          }
+          return next;
+        });
+      };
+
+      const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!topic.trim()) return;
+        
+        // Dynamic validation
+        const needsTopic = enabledAgents.researcher || (!enabledAgents.writer && enabledAgents.seo);
+        const needsResearchReport = !enabledAgents.researcher && enabledAgents.writer;
+        const needsBlogDraft = !enabledAgents.researcher && !enabledAgents.writer && enabledAgents.seo;
+
+        if (needsTopic && !topic.trim()) return;
+        if (needsResearchReport && !researchReport.trim()) return;
+        if (needsBlogDraft && !blogDraft.trim()) return;
 
         setRunning(true);
         setLogs([]);
@@ -890,115 +1046,159 @@
         setActiveAgent(null);
         setActiveTool(null);
         setActiveTask(null);
+
+        // Initialize task status based on enabled agents
         setTaskStatus({
-          research: 'pending',
-          writing: 'pending',
-          seo: 'pending',
-          distribution: 'pending'
+          research: enabledAgents.researcher ? 'pending' : 'skipped',
+          writing: enabledAgents.writer ? 'pending' : 'skipped',
+          seo: enabledAgents.seo ? 'pending' : 'skipped',
+          distribution: enabledAgents.seo ? 'pending' : 'skipped'
         });
 
-        const backendUrl = `/api/run?topic=${encodeURIComponent(topic)}`;
-        const eventSource = new EventSource(backendUrl);
+        // Build list of active agent keys
+        const enabledList = [];
+        if (enabledAgents.researcher) enabledList.push('researcher');
+        if (enabledAgents.writer) enabledList.push('writer');
+        if (enabledAgents.seo) enabledList.push('seo');
 
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            const timestamp = new Date().toLocaleTimeString();
-
-            if (data.type === 'task_start') {
-              setActiveTask(data.task_id);
-              setTaskStatus(prev => ({ ...prev, [data.task_id]: 'running' }));
-              setLogs(prev => [...prev, {
-                id: Date.now() + Math.random(),
-                time: timestamp,
-                type: 'system',
-                text: `🚀 Active Agent Operations: Initiating stage - "${data.task_name}"`
-              }]);
-              setSystemStatus('PROCESSING');
-            }
-            else if (data.type === 'task_end') {
-              setTaskStatus(prev => {
-                const next = { ...prev };
-                const runningTask = Object.keys(next).find(key => next[key] === 'running');
-                if (runningTask) next[runningTask] = 'completed';
-                return next;
-              });
-              setActiveTask(null);
-            }
-            else if (data.type === 'agent_start') {
-              setActiveAgent(data.agent_id);
-              setLogs(prev => [...prev, {
-                id: Date.now() + Math.random(),
-                time: timestamp,
-                type: 'agent_start',
-                text: `🤖 Agent connection established: ${data.agent_name} is processing data`,
-                agentId: data.agent_id,
-                agentName: data.agent_name
-              }]);
-            }
-            else if (data.type === 'tool_start') {
-              setActiveTool(data.tool_name);
-              setLogs(prev => [...prev, {
-                id: Date.now() + Math.random(),
-                time: timestamp,
-                type: 'tool',
-                text: `🔧 Core Module: Executing external search utility - ${data.tool_name}...`,
-                agentId: activeAgentRef.current
-              }]);
-            }
-            else if (data.type === 'tool_end') {
-              setActiveTool(null);
-              setLogs(prev => [...prev, {
-                id: Date.now() + Math.random(),
-                time: timestamp,
-                type: 'tool_end',
-                text: `✅ Utility operations completed. Processing results.`,
-                agentId: activeAgentRef.current
-              }]);
-            }
-            else if (data.type === 'status') {
-              setLogs(prev => [...prev, {
-                id: Date.now() + Math.random(),
-                time: timestamp,
-                type: 'status',
-                text: data.message,
-                agentId: activeAgentRef.current
-              }]);
-            }
-            else if (data.type === 'result') {
-              setResult(data.output);
-              setRunning(false);
-              setSystemStatus('COMPLETED');
-              setTaskStatus({
-                research: 'completed',
-                writing: 'completed',
-                seo: 'completed',
-                distribution: 'completed'
-              });
-              setActiveAgent(null);
-              setActiveTool(null);
-              eventSource.close();
-            }
-            else if (data.type === 'error') {
-              setError(data.message);
-              setRunning(false);
-              setSystemStatus('FAILED');
-              setTaskStatus(prev => {
-                const next = { ...prev };
-                const runningTask = Object.keys(next).find(key => next[key] === 'running');
-                if (runningTask) next[runningTask] = 'failed';
-                return next;
-              });
-              eventSource.close();
-            }
-          } catch (err) {
-            console.error('Failed to parse SSE data:', err);
-          }
+        const payload = {
+          topic: needsTopic ? topic : null,
+          blog_draft: needsBlogDraft ? blogDraft : null,
+          research_report: needsResearchReport ? researchReport : null,
+          enabled_agents: enabledList
         };
 
-        eventSource.onerror = (err) => {
-          console.error('EventSource error:', err);
-          setError('Communication link lost. Unable to retrieve server response feed.');
+        try {
+          const response = await fetch('/api/run', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server returned HTTP ${response.status}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop(); // Hold onto partial line
+
+            for (const rawLine of lines) {
+              const line = rawLine.trim();
+              if (!line) continue;
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  const timestamp = new Date().toLocaleTimeString();
+
+                  if (data.type === 'task_start') {
+                    setActiveTask(data.task_id);
+                    setTaskStatus(prev => ({ ...prev, [data.task_id]: 'running' }));
+                    setLogs(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      time: timestamp,
+                      type: 'system',
+                      text: `🚀 Active Agent Operations: Initiating stage - "${data.task_name}"`
+                    }]);
+                    setSystemStatus('PROCESSING');
+                  }
+                  else if (data.type === 'task_end') {
+                    setTaskStatus(prev => {
+                      const next = { ...prev };
+                      const runningTask = Object.keys(next).find(key => next[key] === 'running');
+                      if (runningTask) next[runningTask] = 'completed';
+                      return next;
+                    });
+                    setActiveTask(null);
+                  }
+                  else if (data.type === 'agent_start') {
+                    setActiveAgent(data.agent_id);
+                    setLogs(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      time: timestamp,
+                      type: 'agent_start',
+                      text: `🤖 Agent connection established: ${data.agent_name} is processing data`,
+                      agentId: data.agent_id,
+                      agentName: data.agent_name
+                    }]);
+                  }
+                  else if (data.type === 'tool_start') {
+                    setActiveTool(data.tool_name);
+                    setLogs(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      time: timestamp,
+                      type: 'tool',
+                      text: `🔧 Core Module: Executing external search utility - ${data.tool_name}...`,
+                      agentId: activeAgentRef.current
+                    }]);
+                  }
+                  else if (data.type === 'tool_end') {
+                    setActiveTool(null);
+                    setLogs(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      time: timestamp,
+                      type: 'tool_end',
+                      text: `✅ Utility operations completed. Processing results.`,
+                      agentId: activeAgentRef.current
+                    }]);
+                  }
+                  else if (data.type === 'status') {
+                    setLogs(prev => [...prev, {
+                      id: Date.now() + Math.random(),
+                      time: timestamp,
+                      type: 'status',
+                      text: data.message,
+                      agentId: activeAgentRef.current
+                    }]);
+                  }
+                  else if (data.type === 'result') {
+                    setResult(data.output);
+                    setRunning(false);
+                    setSystemStatus('COMPLETED');
+                    
+                    // Mark all non-skipped tasks as completed
+                    setTaskStatus(prev => {
+                      const next = { ...prev };
+                      Object.keys(next).forEach(key => {
+                        if (next[key] !== 'skipped') {
+                          next[key] = 'completed';
+                        }
+                      });
+                      return next;
+                    });
+                    setActiveAgent(null);
+                    setActiveTool(null);
+                  }
+                  else if (data.type === 'error') {
+                    setError(data.message);
+                    setRunning(false);
+                    setSystemStatus('FAILED');
+                    setTaskStatus(prev => {
+                      const next = { ...prev };
+                      const runningTask = Object.keys(next).find(key => next[key] === 'running');
+                      if (runningTask) next[runningTask] = 'failed';
+                      return next;
+                    });
+                  }
+                } catch (err) {
+                  console.error('Failed to parse SSE line JSON:', err, line);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Stream reader error:', err);
+          setError(err.message || 'Communication link lost. Unable to retrieve server response feed.');
           setRunning(false);
           setSystemStatus('FAILED');
           setTaskStatus(prev => {
@@ -1007,8 +1207,7 @@
             if (runningTask) next[runningTask] = 'failed';
             return next;
           });
-          eventSource.close();
-        };
+        }
       };
 
       const handleCopy = (text, type) => {
@@ -1164,11 +1363,13 @@
                 const isRunning = status === 'running';
                 const isCompleted = status === 'completed';
                 const isFailed = status === 'failed';
+                const isSkipped = status === 'skipped';
                 
                 let nodeClass = 'node-pending';
                 if (isRunning) nodeClass = 'node-running';
                 else if (isCompleted) nodeClass = 'node-completed';
                 else if (isFailed) nodeClass = 'node-failed';
+                else if (isSkipped) nodeClass = 'node-skipped';
 
                 return (
                   <React.Fragment key={task.id}>
@@ -1177,10 +1378,15 @@
                         <span className="node-icon">{task.icon}</span>
                         <span className="node-label">{task.label}</span>
                       </div>
-                      <span className="node-agent">{task.agent}</span>
+                      <span className="node-agent">
+                        {isSkipped ? 'Skipped' : task.agent}
+                      </span>
                     </div>
                     {index < tasksList.length - 1 && (
-                      <div className={`pipeline-connector ${isCompleted ? 'connector-lit' : ''} ${isRunning ? 'connector-active' : ''}`}></div>
+                      <div className={`pipeline-connector ${
+                        isCompleted ? 'connector-lit' : 
+                        isRunning ? 'connector-active' : ''
+                      }`}></div>
                     )}
                   </React.Fragment>
                 );
@@ -1191,53 +1397,169 @@
           {/* Input Form */}
           <section className="glass-card">
             <form onSubmit={handleSubmit} className="search-form">
-              <div className="input-group">
-                <label htmlFor="topic-input">Configure Campaign Topic</label>
-                <div className="input-container">
-                  <input
-                    id="topic-input"
-                    type="text"
-                    className="text-input"
-                    placeholder="Enter campaign subject or URL (e.g., https://example.com/article, Electric vehicles trends)..."
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    disabled={running}
-                  />
-                  <button type="submit" className="glow-button" disabled={running || !topic.trim()}>
-                    {running ? (
-                      <>
-                        <div className="spinner"></div>
-                        Processing Matrix...
-                      </>
-                    ) : (
-                      <>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                        Initiate Run
-                      </>
-                    )}
-                  </button>
-                  {running && (
-                    <button 
-                      type="button" 
-                      className="glow-button" 
-                      onClick={handleTerminate}
-                      style={{
-                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                        boxShadow: '0 4px 14px 0 rgba(239, 68, 68, 0.4)'
-                      }}
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="9" y1="9" x2="15" y2="15"/>
-                        <line x1="15" y1="9" x2="9" y2="15"/>
-                      </svg>
-                      Terminate Run
-                    </button>
-                  )}
+              {/* Agent Selection panel */}
+              <div className="agent-selector-container">
+                <div className="agent-selector-title">Configure Active Agent Matrix</div>
+                <div className="agent-toggles-grid">
+                  <div 
+                    className={`agent-toggle-card ${enabledAgents.researcher ? 'active' : ''}`}
+                    onClick={() => toggleAgent('researcher')}
+                  >
+                    <div className="agent-toggle-info">
+                      <span className="agent-toggle-name">🔍 Market Researcher</span>
+                      <span className="agent-toggle-role">Web Scraper & Analyst</span>
+                    </div>
+                    <div className="agent-checkbox-wrapper">
+                      <input 
+                        type="checkbox" 
+                        checked={enabledAgents.researcher} 
+                        onChange={() => {}} 
+                        disabled={running}
+                      />
+                      <span className="agent-checkbox-slider"></span>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`agent-toggle-card ${enabledAgents.writer ? 'active' : ''}`}
+                    onClick={() => toggleAgent('writer')}
+                  >
+                    <div className="agent-toggle-info">
+                      <span className="agent-toggle-name">📝 Content Creator</span>
+                      <span className="agent-toggle-role">Professional Blog Writer</span>
+                    </div>
+                    <div className="agent-checkbox-wrapper">
+                      <input 
+                        type="checkbox" 
+                        checked={enabledAgents.writer} 
+                        onChange={() => {}} 
+                        disabled={running}
+                      />
+                      <span className="agent-checkbox-slider"></span>
+                    </div>
+                  </div>
+
+                  <div 
+                    className={`agent-toggle-card ${enabledAgents.seo ? 'active' : ''}`}
+                    onClick={() => toggleAgent('seo')}
+                  >
+                    <div className="agent-toggle-info">
+                      <span className="agent-toggle-name">⚙️ SEO & Socials Guru</span>
+                      <span className="agent-toggle-role">Optimization & Distribution</span>
+                    </div>
+                    <div className="agent-checkbox-wrapper">
+                      <input 
+                        type="checkbox" 
+                        checked={enabledAgents.seo} 
+                        onChange={() => {}} 
+                        disabled={running}
+                      />
+                      <span className="agent-checkbox-slider"></span>
+                    </div>
+                  </div>
                 </div>
               </div>
+
+              {/* Dynamic Inputs Based on Agent Selection */}
+              {(() => {
+                const needsTopic = enabledAgents.researcher || (!enabledAgents.writer && enabledAgents.seo);
+                const needsResearchReport = !enabledAgents.researcher && enabledAgents.writer;
+                const needsBlogDraft = !enabledAgents.researcher && !enabledAgents.writer && enabledAgents.seo;
+
+                const isSubmitDisabled = running ||
+                  (needsTopic && !topic.trim()) ||
+                  (needsResearchReport && !researchReport.trim()) ||
+                  (needsBlogDraft && !blogDraft.trim());
+
+                return (
+                  <div className="input-group">
+                    {needsTopic && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: needsBlogDraft ? '1.25rem' : '0' }}>
+                        <label htmlFor="topic-input">
+                          {enabledAgents.researcher ? 'Configure Campaign Topic' : 'Target SEO Keywords / Focus Topic'}
+                        </label>
+                        <input
+                          id="topic-input"
+                          type="text"
+                          className="text-input"
+                          placeholder={enabledAgents.researcher ? "Enter campaign subject or URL (e.g., https://example.com/article, Electric vehicles trends)..." : "Enter focus keywords or target SEO topic (e.g. enterprise backup storage)..."}
+                          value={topic}
+                          onChange={(e) => setTopic(e.target.value)}
+                          disabled={running}
+                        />
+                      </div>
+                    )}
+
+                    {needsResearchReport && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label htmlFor="research-report-input">Source Market Research Content</label>
+                        <textarea
+                          id="research-report-input"
+                          className="text-input"
+                          placeholder="Paste the source market research report text or raw findings here..."
+                          value={researchReport}
+                          onChange={(e) => setResearchReport(e.target.value)}
+                          disabled={running}
+                          rows={8}
+                          style={{ fontFamily: 'inherit', resize: 'vertical', minHeight: '150px' }}
+                        />
+                      </div>
+                    )}
+
+                    {needsBlogDraft && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label htmlFor="blog-draft-input">Existing Blog Post Draft</label>
+                        <textarea
+                          id="blog-draft-input"
+                          className="text-input"
+                          placeholder="Paste your raw, draft blog post content here (the SEO Specialist will optimize it)..."
+                          value={blogDraft}
+                          onChange={(e) => setBlogDraft(e.target.value)}
+                          disabled={running}
+                          rows={8}
+                          style={{ fontFamily: 'inherit', resize: 'vertical', minHeight: '150px' }}
+                        />
+                      </div>
+                    )}
+
+                    <div className="input-container" style={{ marginTop: '1.25rem' }}>
+                      <button type="submit" className="glow-button" disabled={isSubmitDisabled} style={{ flex: 1, justifyContent: 'center' }}>
+                        {running ? (
+                          <>
+                            <div className="spinner"></div>
+                            Processing Neural Matrix...
+                          </>
+                        ) : (
+                          <>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                              <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Initiate Dynamic Run
+                          </>
+                        )}
+                      </button>
+                      {running && (
+                        <button 
+                          type="button" 
+                          className="glow-button" 
+                          onClick={handleTerminate}
+                          style={{
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                            boxShadow: '0 4px 14px 0 rgba(239, 68, 68, 0.4)'
+                          }}
+                        >
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="9" y1="9" x2="15" y2="15"/>
+                            <line x1="15" y1="9" x2="9" y2="15"/>
+                          </svg>
+                          Terminate Run
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </form>
           </section>
 

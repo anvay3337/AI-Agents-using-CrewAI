@@ -187,7 +187,10 @@ def seo_keyword_tool(topic: str) -> str:
     # Mock SEO keyword suggestions based on the topic
     return f"SEO Keywords for '{topic}': best {topic}, {topic} guide, how to use {topic}, trending {topic} 2026. Search Intent: Informational."
 
-def create_marketing_crew():
+def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, research_report: str = None):
+    if enabled_agents is None:
+        enabled_agents = ["researcher", "writer", "seo"]
+
     from crewai import LLM
     import os
     
@@ -322,10 +325,44 @@ Your final response MUST be structured exactly as follows:
         if is_termination_requested():
             raise RuntimeError("Campaign execution terminated by user.")
 
+    # Filter agents and tasks dynamically based on user selection
+    tasks = []
+    agents = []
+
+    if "researcher" in enabled_agents:
+        agents.append(market_researcher)
+        tasks.append(research_task)
+
+    if "writer" in enabled_agents:
+        agents.append(content_creator)
+        if "researcher" not in enabled_agents:
+            # Override description to read the user-supplied research report directly
+            write_task = Task(
+                description="""Using the provided market research report: {research_report}
+Write an informative blog post or article. Ensure the tone is engaging and fits a professional audience.""",
+                expected_output="A complete draft article (approx. 800-1000 words) with clear headings and engaging content.",
+                agent=content_creator
+            )
+        tasks.append(write_task)
+
+    if "seo" in enabled_agents:
+        agents.append(marketing_specialist)
+        if "writer" not in enabled_agents:
+            # Override description to read the user-supplied blog draft directly
+            refine_task = Task(
+                description="""Analyze the provided draft article and optimize it for SEO. Draft article content: {blog_draft}
+Use the SEO Keyword Tool exactly once to analyze the topic '{topic}' for relevant search terms, insert them naturally, write meta tags, and suggest heading updates.""",
+                expected_output="An SEO-optimized version of the article with a list of keywords used, target meta title, and meta description.",
+                agent=marketing_specialist,
+                tools=[seo_keyword_tool]
+            )
+        tasks.append(refine_task)
+        tasks.append(distribute_task)
+
     # Assemble the crew
     marketing_crew = Crew(
-        agents=[market_researcher, content_creator, marketing_specialist],
-        tasks=[research_task, write_task, refine_task, distribute_task],
+        agents=agents,
+        tasks=tasks,
         process=Process.sequential,
         verbose=True,
         cache=False,  # Disabled: Groq rejects cache_breakpoint in messages
