@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic Marketing Crew Dashboard</title>
+  
+  <!-- Load React and ReactDOM from CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Load Babel for browser-side JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Google Fonts & Monospace font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      line-height: 1.5;
+      font-weight: 400;
+      color-scheme: dark;
+      color: rgba(255, 255, 255, 0.87);
+      background-color: #05070f;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 50% 0%, #17153b 0%, #080c14 60%, #02040a 100%);
+      background-attachment: fixed;
+      color: #f1f5f9;
+      overflow-x: hidden;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.02);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Typography headers */
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #ffffff;
+    }
+
+    .app-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .header h1 {
+      font-size: 3rem;
+      background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #2dd4bf 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+      font-weight: 800;
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      color: #94a3b8;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .glass-card {
+      background: rgba(10, 15, 30, 0.65);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 1.25rem;
+      padding: 2rem;
+      box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .glass-card:hover {
+      border-color: rgba(129, 140, 248, 0.25);
+      box-shadow: 0 15px 40px -5px rgba(129, 140, 248, 0.05);
+    }
+
+    .search-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      max-width: 750px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .input-group label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #cbd5e1;
+    }
+
+    .input-container {
+      position: relative;
+      display: flex;
+      gap: 1rem;
+    }
+
+    .text-input {
+      flex: 1;
+      background: rgba(8, 12, 24, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.75rem;
+      padding: 1rem 1.25rem;
+      color: #ffffff;
+      font-size: 1.1rem;
+      outline: none;
+      font-family: inherit;
+      transition: all 0.25s ease;
+      box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .text-input:focus {
+      border-color: #818cf8;
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25), inset 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    .text-input::placeholder {
+      color: #475569;
+    }
+
+    .glow-button {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 0.75rem;
+      padding: 1rem 2rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.4);
+      white-space: nowrap;
+    }
+
+    .glow-button:hover:not(:disabled) {
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+      box-shadow: 0 6px 20px 0 rgba(79, 70, 229, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .glow-button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .glow-button:disabled {
+      opacity: 0.6;
+      background: #1e293b;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* Neural Telemetry Bar */
+    .neural-core-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      width: 100%;
+    }
+
+    @media (min-width: 768px) {
+      .neural-core-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .core-stat-card {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-label {
+      font-size: 0.725rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #94a3b8;
+    }
+
+    .stat-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .stat-value-container {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .status-dot.idle {
+      background-color: #64748b;
+      box-shadow: 0 0 8px #64748b;
+    }
+
+    .status-dot.initializing {
+      background-color: #3b82f6;
+      box-shadow: 0 0 8px #3b82f6;
+      animation: pulse 1s infinite alternate;
+    }
+
+    .status-dot.processing {
+      background-color: #a78bfa;
+      box-shadow: 0 0 10px #a78bfa;
+      animation: pulse 0.8s infinite alternate;
+    }
+
+    .status-dot.completed {
+      background-color: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .status-dot.failed {
+      background-color: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+    }
+
+    .text-indigo { color: #818cf8; }
+    .text-teal { color: #2dd4bf; }
+    .text-amber { color: #f59e0b; }
+
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.6; }
+      100% { transform: scale(1.2); opacity: 1; }
+    }
+
+    /* Live Pipeline Map Styles */
+    .pipeline-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      width: 100%;
+      margin: 0.5rem 0;
+    }
+
+    @media (min-width: 900px) {
+      .pipeline-container {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+      }
+    }
+
+    .pipeline-node {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem 0.75rem;
+      border-radius: 0.75rem;
+      background: rgba(8, 12, 24, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pipeline-node.node-pending {
+      color: #475569;
+    }
+
+    .pipeline-node.node-running {
+      border-color: #10b981;
+      color: #ffffff;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
+      background: rgba(16, 185, 129, 0.08);
+    }
+
+    .pipeline-node.node-running::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(16, 185, 129, 0.2) 50%, transparent 100%);
+      animation: scan 2.2s linear infinite;
+    }
+
+    .pipeline-node.node-completed {
+      border-color: #10b981;
+      color: #10b981;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+      background: rgba(16, 185, 129, 0.02);
+    }
+
+    .pipeline-node.node-failed {
+      border-color: #ef4444;
+      color: #ef4444;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
+      background: rgba(239, 68, 68, 0.02);
+    }
+
+    .node-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .node-icon {
+      font-size: 1.15rem;
+    }
+
+    .node-label {
+      font-weight: 600;
+      font-size: 0.875rem;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .node-agent {
+      font-size: 0.7rem;
+      opacity: 0.55;
+      text-align: center;
+    }
+
+    .pipeline-connector {
+      display: none;
+      width: 2rem;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.06);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    @media (min-width: 900px) {
+      .pipeline-connector {
+        display: block;
+      }
+    }
+
+    .pipeline-connector.connector-lit {
+      background: linear-gradient(90deg, #10b981, #818cf8);
+      box-shadow: 0 0 6px rgba(129, 140, 248, 0.3);
+    }
+
+    .pipeline-connector.connector-active::after {
+      content: '';
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: #818cf8;
+      border-radius: 50%;
+      top: -2px;
+      left: 0;
+      box-shadow: 0 0 6px #818cf8;
+      animation: slide-connector 1.5s infinite linear;
+    }
+
+    @keyframes scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    @keyframes slide-connector {
+      0% { left: 0%; }
+      100% { left: 100%; }
+    }
+
+    /* Agent Communications Feed styles */
+    .terminal-window {
+      width: 100%;
+      max-width: 1000px;
+      margin: 0 auto;
+      border-radius: 0.875rem;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    .terminal-header {
+      background: rgba(10, 15, 30, 0.95);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background-color: #ef4444; }
+    .dot.yellow { background-color: #f59e0b; }
+    .dot.green { background-color: #10b981; }
+
+    .terminal-title {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.725rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .visualizer-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 14px;
+      width: 48px;
+      justify-content: flex-end;
+    }
+
+    .visualizer-container .bar {
+      width: 3px;
+      height: 3px;
+      background-color: #818cf8;
+      border-radius: 1px;
+      transition: height 0.3s ease;
+    }
+
+    .visualizer-container .bar.playing {
+      animation: bounce 0.7s ease infinite alternate;
+    }
+
+    @keyframes bounce {
+      0% { height: 3px; }
+      100% { height: 14px; }
+    }
+
+    .terminal-body {
+      background: rgba(4, 6, 12, 0.9);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      padding: 1.5rem;
+      height: 380px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      scroll-behavior: smooth;
+    }
+
+    .feed-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      background: rgba(255, 255, 255, 0.01);
+      border-left: 3px solid transparent;
+      transition: all 0.25s ease;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .feed-item:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .feed-item-tool {
+      padding-left: 2.25rem;
+      border-left: 3px dashed rgba(129, 140, 248, 0.25);
+      background: transparent;
+    }
+
+    .feed-time {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.725rem;
+      color: #475569;
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+    }
+
+    .feed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 0.375rem;
+      font-size: 0.725rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .feed-avatar {
+      font-size: 0.85rem;
+    }
+
+    .badge-system {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.18);
+    }
+
+    .badge-researcher {
+      background: rgba(20, 184, 166, 0.12);
+      color: #2dd4bf;
+      border: 1px solid rgba(20, 184, 166, 0.18);
+    }
+
+    .badge-creator {
+      background: rgba(192, 132, 252, 0.12);
+      color: #d8b4fe;
+      border: 1px solid rgba(192, 132, 252, 0.18);
+    }
+
+    .badge-seo {
+      background: rgba(59, 130, 246, 0.12);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.18);
+    }
+
+    .feed-text {
+      color: #cbd5e1;
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    .text-tool {
+      color: #64748b;
+      font-style: italic;
+      font-size: 0.85rem;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .terminal-placeholder {
+      color: #475569;
+      text-align: center;
+      margin: auto;
+      font-style: italic;
+    }
+
+    /* Results layout */
+    .results-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @media (min-width: 1024px) {
+      .results-container {
+        grid-template-columns: 2fr 1fr;
+      }
+    }
+
+    .result-main {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .result-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .result-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .result-section-title {
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-left: 4px solid #818cf8;
+      padding-left: 0.75rem;
+      margin: 0;
+    }
+
+    .tab-toolbar {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .tool-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      padding: 0.35rem 0.75rem;
+      border-radius: 0.5rem;
+      font-size: 0.775rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+
+    .tool-btn:hover {
+      background: rgba(129, 140, 248, 0.15);
+      border-color: #818cf8;
+      color: #ffffff;
+    }
+
+    .content-block {
+      line-height: 1.75;
+      color: #cbd5e1;
+      font-size: 1.025rem;
+    }
+
+    .content-block p {
+      margin-bottom: 1.25rem;
+    }
+
+    .content-block h2 {
+      font-size: 1.35rem;
+      margin: 1.75rem 0 1rem 0;
+      color: #f8fafc;
+    }
+
+    .content-block h3 {
+      font-size: 1.15rem;
+      margin: 1.25rem 0 0.75rem 0;
+      color: #f1f5f9;
+    }
+
+    .content-block ul, .content-block ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .content-block li::marker {
+      color: #818cf8;
+    }
+
+    .post-card {
+      background: rgba(30, 41, 59, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .post-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .post-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: #818cf8;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+
+    .copy-icon-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+
+    .copy-icon-btn:hover {
+      opacity: 1;
+    }
+
+    .post-body {
+      font-size: 0.95rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .post-image-placeholder {
+      background: rgba(8, 12, 24, 0.4);
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-style: italic;
+    }
+
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top: 3px solid #ffffff;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React code compiled in real time by Babel -->
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function App() {
+      const [topic, setTopic] = useState('');
+      const [running, setRunning] = useState(false);
+      const [logs, setLogs] = useState([]);
+      const [result, setResult] = useState(null);
+      const [error, setError] = useState(null);
+      const [systemStatus, setSystemStatus] = useState('IDLE');
+      
+      // Elapsed timer state
+      const [elapsedTime, setElapsedTime] = useState(0);
+
+      // Active agent and tool tracking states
+      const [activeAgent, setActiveAgent] = useState(null);
+      const [activeTool, setActiveTool] = useState(null);
+      const [activeTask, setActiveTask] = useState(null);
+      
+      // Task progress tracker states
+      const [taskStatus, setTaskStatus] = useState({
+        research: 'pending',
+        writing: 'pending',
+        seo: 'pending',
+        distribution: 'pending'
+      });
+
+      const terminalEndRef = useRef(null);
+
+      // Auto-scroll log feed
+      useEffect(() => {
+        if (terminalEndRef.current) {
+          terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, [logs]);
+
+      // Execution timer effect
+      useEffect(() => {
+        let timer;
+        if (running) {
+          timer = setInterval(() => {
+            setElapsedTime((prev) => prev + 1);
+          }, 1000);
+        } else {
+          setElapsedTime(0);
+        }
+        return () => clearInterval(timer);
+      }, [running]);
+
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      };
+
+      const handleTerminate = async () => {
+        const confirmTerminate = window.confirm("Are you sure you want to terminate the active marketing campaign process mid-way?");
+        if (!confirmTerminate) return;
+
+        try {
+          const response = await fetch('/api/terminate', { method: 'POST' });
+          if (response.ok) {
+            setLogs(prev => [...prev, {
+              id: Date.now() + Math.random(),
+              time: new Date().toLocaleTimeString(),
+              type: 'system',
+              text: `⚠️ Termination signal dispatched. Halting all neural matrix nodes...`
+            }]);
+          } else {
+            alert("Failed to send termination signal.");
+          }
+        } catch (err) {
+          console.error("Error calling terminate API:", err);
+          alert("Error contacting the core server to terminate the process.");
+        }
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!topic.trim()) return;
+
+        setRunning(true);
+        setLogs([]);
+        setResult(null);
+        setError(null);
+        setSystemStatus('PROCESSING');
+        setActiveAgent(null);
+        setActiveTool(null);
+        setActiveTask(null);
+        setTaskStatus({
+          research: 'pending',
+          writing: 'pending',
+          seo: 'pending',
+          distribution: 'pending'
+        });
+
+        const backendUrl = `/api/run?topic=${encodeURIComponent(topic)}`;
+        const eventSource = new EventSource(backendUrl);
+
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const timestamp = new Date().toLocaleTimeString();
+
+            if (data.type === 'task_start') {
+              setActiveTask(data.task_id);
+              setTaskStatus(prev => ({ ...prev, [data.task_id]: 'running' }));
+              setLogs(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                time: timestamp,
+                type: 'system',
+                text: `🚀 Active Agent Operations: Initiating stage - "${data.task_name}"`
+              }]);
+              setSystemStatus('PROCESSING');
+            }
+            else if (data.type === 'task_end') {
+              setTaskStatus(prev => {
+                const next = { ...prev };
+                const runningTask = Object.keys(next).find(key => next[key] === 'running');
+                if (runningTask) next[runningTask] = 'completed';
+                return next;
+              });
+              setActiveTask(null);
+            }
+            else if (data.type === 'agent_start') {
+              setActiveAgent(data.agent_id);
+              setLogs(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                time: timestamp,
+                type: 'agent_start',
+                text: `🤖 Agent connection established: ${data.agent_name} is processing data`,
+                agentId: data.agent_id,
+                agentName: data.agent_name
+              }]);
+            }
+            else if (data.type === 'tool_start') {
+              setActiveTool(data.tool_name);
+              setLogs(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                time: timestamp,
+                type: 'tool',
+                text: `🔧 Core Module: Executing external search utility - ${data.tool_name}...`,
+                agentId: activeAgent
+              }]);
+            }
+            else if (data.type === 'tool_end') {
+              setActiveTool(null);
+              setLogs(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                time: timestamp,
+                type: 'tool_end',
+                text: `✅ Utility operations completed. Processing results.`,
+                agentId: activeAgent
+              }]);
+            }
+            else if (data.type === 'status') {
+              setLogs(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                time: timestamp,
+                type: 'status',
+                text: data.message,
+                agentId: activeAgent
+              }]);
+            }
+            else if (data.type === 'result') {
+              setResult(data.output);
+              setRunning(false);
+              setSystemStatus('COMPLETED');
+              setTaskStatus({
+                research: 'completed',
+                writing: 'completed',
+                seo: 'completed',
+                distribution: 'completed'
+              });
+              setActiveAgent(null);
+              setActiveTool(null);
+              eventSource.close();
+            }
+            else if (data.type === 'error') {
+              setError(data.message);
+              setRunning(false);
+              setSystemStatus('FAILED');
+              setTaskStatus(prev => {
+                const next = { ...prev };
+                const runningTask = Object.keys(next).find(key => next[key] === 'running');
+                if (runningTask) next[runningTask] = 'failed';
+                return next;
+              });
+              eventSource.close();
+            }
+          } catch (err) {
+            console.error('Failed to parse SSE data:', err);
+          }
+        };
+
+        eventSource.onerror = (err) => {
+          console.error('EventSource error:', err);
+          setError('Communication link lost. Unable to retrieve server response feed.');
+          setRunning(false);
+          setSystemStatus('FAILED');
+          setTaskStatus(prev => {
+            const next = { ...prev };
+            const runningTask = Object.keys(next).find(key => next[key] === 'running');
+            if (runningTask) next[runningTask] = 'failed';
+            return next;
+          });
+          eventSource.close();
+        };
+      };
+
+      const handleCopy = (text, type) => {
+        navigator.clipboard.writeText(text);
+        alert(`${type} copied to clipboard!`);
+      };
+
+      const handleDownload = (text, filename) => {
+        const element = document.createElement("a");
+        const file = new Blob([text], {type: 'text/plain;charset=utf-8'});
+        element.href = URL.createObjectURL(file);
+        element.download = filename;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+      };
+
+      const parseResult = (text) => {
+        if (!text) return null;
+        
+        const facebookMatch = text.match(/\*\*Facebook Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) || 
+                              text.match(/Facebook Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+        const twitterMatch = text.match(/\*\*Twitter Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
+                             text.match(/Twitter Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+        const instagramMatch = text.match(/\*\*Instagram Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
+                               text.match(/Instagram Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+
+        return {
+          facebook: facebookMatch ? facebookMatch[1].trim() : null,
+          twitter: twitterMatch ? twitterMatch[1].trim() : null,
+          instagram: instagramMatch ? instagramMatch[1].trim() : null,
+        };
+      };
+
+      const parsedResult = parseResult(result);
+
+      // Nodes for visual progress flow
+      const tasksList = [
+        { id: 'research', label: 'Market Research', agent: 'Senior Researcher', icon: '🔍' },
+        { id: 'writing', label: 'Content Drafting', agent: 'Expert Writer', icon: '📝' },
+        { id: 'seo', label: 'SEO Tuning', agent: 'SEO Specialist', icon: '⚙️' },
+        { id: 'distribution', label: 'Social Distribution', agent: 'SEO Specialist', icon: '📣' }
+      ];
+
+      return (
+        <div className="app-container">
+          <header className="header">
+            <h1>Agentic Marketing Crew</h1>
+            <p>
+              An automated, multi-agent AI system orchestrating market analysis, draft generation, and distribution planning.
+            </p>
+          </header>
+
+          {/* Futuristic Telemetry stats bar */}
+          <section className="neural-core-grid">
+            <div className="core-stat-card glass-card">
+              <div className="stat-label">System Core State</div>
+              <div className="stat-value-container">
+                <span className={`status-dot ${systemStatus.toLowerCase()}`}></span>
+                <span className="stat-value">{systemStatus}</span>
+              </div>
+            </div>
+            <div className="core-stat-card glass-card">
+              <div className="stat-label">Neural Engine</div>
+              <div className="stat-value text-indigo">Llama 3.2 3B</div>
+            </div>
+            <div className="core-stat-card glass-card">
+              <div className="stat-label">Active Matrix Nodes</div>
+              <div className="stat-value text-teal">{running ? '3 Agents Engaged' : '0 Agents Active'}</div>
+            </div>
+            <div className="core-stat-card glass-card">
+              <div className="stat-label">Processing Duration</div>
+              <div className="stat-value text-amber">{formatTime(elapsedTime)}</div>
+            </div>
+          </section>
+
+          {/* Interactive Agent Pipeline Map */}
+          <section className="glass-card">
+            <h2 className="stat-label" style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+              Real-time Neural Pipeline Stream
+            </h2>
+            <div className="pipeline-container">
+              {tasksList.map((task, index) => {
+                const status = taskStatus[task.id];
+                const isRunning = status === 'running';
+                const isCompleted = status === 'completed';
+                const isFailed = status === 'failed';
+                
+                let nodeClass = 'node-pending';
+                if (isRunning) nodeClass = 'node-running';
+                else if (isCompleted) nodeClass = 'node-completed';
+                else if (isFailed) nodeClass = 'node-failed';
+
+                return (
+                  <React.Fragment key={task.id}>
+                    <div className={`pipeline-node ${nodeClass}`}>
+                      <div className="node-header">
+                        <span className="node-icon">{task.icon}</span>
+                        <span className="node-label">{task.label}</span>
+                      </div>
+                      <span className="node-agent">{task.agent}</span>
+                    </div>
+                    {index < tasksList.length - 1 && (
+                      <div className={`pipeline-connector ${isCompleted ? 'connector-lit' : ''} ${isRunning ? 'connector-active' : ''}`}></div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Input Form */}
+          <section className="glass-card">
+            <form onSubmit={handleSubmit} className="search-form">
+              <div className="input-group">
+                <label htmlFor="topic-input">Configure Campaign Topic</label>
+                <div className="input-container">
+                  <input
+                    id="topic-input"
+                    type="text"
+                    className="text-input"
+                    placeholder="Enter campaign subject (e.g., Electric vehicles market trends, best movies in 2026)..."
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    disabled={running}
+                  />
+                  <button type="submit" className="glow-button" disabled={running || !topic.trim()}>
+                    {running ? (
+                      <>
+                        <div className="spinner"></div>
+                        Processing Matrix...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        Initiate Run
+                      </>
+                    )}
+                  </button>
+                  {running && (
+                    <button 
+                      type="button" 
+                      className="glow-button" 
+                      onClick={handleTerminate}
+                      style={{
+                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                        boxShadow: '0 4px 14px 0 rgba(239, 68, 68, 0.4)'
+                      }}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="9" y1="9" x2="15" y2="15"/>
+                        <line x1="15" y1="9" x2="9" y2="15"/>
+                      </svg>
+                      Terminate Run
+                    </button>
+                  )}
+                </div>
+              </div>
+            </form>
+          </section>
+
+          {/* Agent Communication Feed (Fitted Logs) */}
+          <section className="terminal-window">
+            <div className="terminal-header">
+              <div className="terminal-dots">
+                <div className="dot red"></div>
+                <div className="dot yellow"></div>
+                <div className="dot green"></div>
+              </div>
+              <span className="terminal-title">Agent Communications Feed</span>
+              <div className="visualizer-container">
+                <div className={`bar ${running ? 'playing' : ''}`}></div>
+                <div className={`bar ${running ? 'playing' : ''}`} style={{ animationDelay: '0.1s' }}></div>
+                <div className={`bar ${running ? 'playing' : ''}`} style={{ animationDelay: '0.2s' }}></div>
+                <div className={`bar ${running ? 'playing' : ''}`} style={{ animationDelay: '0.35s' }}></div>
+              </div>
+            </div>
+            <div className="terminal-body">
+              {logs.length === 0 ? (
+                <div className="terminal-placeholder">
+                  {running ? "Establishing connection to local Llama 3.2 model matrix..." : "Dashboard connection secure. Standby for query execution command."}
+                </div>
+              ) : (
+                logs.map((log) => {
+                  let badgeClass = 'badge-system';
+                  let senderName = 'Core System';
+                  let avatarIcon = '🖥️';
+
+                  if (log.agentId === 'researcher') {
+                    badgeClass = 'badge-researcher';
+                    senderName = 'Research Agent';
+                    avatarIcon = '🔍';
+                  } else if (log.agentId === 'creator') {
+                    badgeClass = 'badge-creator';
+                    senderName = 'Content Writer';
+                    avatarIcon = '📝';
+                  } else if (log.agentId === 'seo') {
+                    badgeClass = 'badge-seo';
+                    senderName = 'SEO Specialist';
+                    avatarIcon = '⚙️';
+                  }
+
+                  if (log.type === 'system') {
+                    badgeClass = 'badge-system';
+                    senderName = 'Telemetry';
+                    avatarIcon = '🚀';
+                  }
+
+                  const isToolElement = log.type === 'tool' || log.type === 'tool_end';
+
+                  return (
+                    <div key={log.id} className={`feed-item ${isToolElement ? 'feed-item-tool' : ''}`}>
+                      <span className="feed-time">[{log.time}]</span>
+                      {!isToolElement && (
+                        <span className={`feed-badge ${badgeClass}`}>
+                          <span className="feed-avatar">{avatarIcon}</span>
+                          {senderName}
+                        </span>
+                      )}
+                      <span className={`feed-text ${isToolElement ? 'text-tool' : ''}`}>
+                        {log.text}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={terminalEndRef} />
+            </div>
+          </section>
+
+          {/* Error display */}
+          {error && (
+            <section className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.08)' }}>
+              <h3 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Processing Core Exception
+              </h3>
+              <p style={{ color: '#fca5a5' }}>{error}</p>
+            </section>
+          )}
+
+          {/* Final Results Dashboard */}
+          {result && (
+            <section className="results-container">
+              {/* Main article / distribution plan output */}
+              <div className="result-main glass-card">
+                <div className="result-header-row">
+                  <h2 className="result-section-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                      <line x1="10" y1="9" x2="8" y2="9"/>
+                    </svg>
+                    Strategic Campaign Document
+                  </h2>
+                  <div className="tab-toolbar">
+                    <button className="tool-btn" onClick={() => handleCopy(result, 'Campaign strategy')}>
+                      📋 Copy
+                    </button>
+                    <button className="tool-btn" onClick={() => handleDownload(result, 'campaign_strategy.md')}>
+                      💾 Download
+                    </button>
+                  </div>
+                </div>
+                <div className="content-block">
+                  {result.split('\n').map((para, i) => {
+                    if (para.startsWith('### ')) {
+                      return <h3 key={i}>{para.replace('### ', '')}</h3>;
+                    } else if (para.startsWith('## ')) {
+                      return <h2 key={i}>{para.replace('## ', '')}</h2>;
+                    } else if (para.startsWith('* ') || para.startsWith('- ')) {
+                      return <li key={i} style={{ marginLeft: '1rem', marginBottom: '0.25rem' }}>{para.substring(2)}</li>;
+                    } else if (para.trim()) {
+                      const boldRegex = /\*\*(.*?)\*\*/g;
+                      const parts = para.split(boldRegex);
+                      return (
+                        <p key={i}>
+                          {parts.map((part, index) => 
+                            index % 2 === 1 ? <strong key={index} style={{ color: '#ffffff' }}>{part}</strong> : part
+                          )}
+                        </p>
+                      );
+                    }
+                    return <br key={i} />;
+                  })}
+                </div>
+              </div>
+
+              {/* Social posts sidebar */}
+              <div className="result-sidebar">
+                <div className="glass-card">
+                  <h2 className="result-section-title" style={{ marginBottom: '1.25rem', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
+                    Tailored Social Distribution
+                  </h2>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {parsedResult && parsedResult.facebook && (
+                      <div className="post-card">
+                        <div className="post-header-row">
+                          <div className="post-header">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+                            </svg>
+                            Facebook
+                          </div>
+                          <button className="copy-icon-btn" onClick={() => handleCopy(parsedResult.facebook, 'Facebook Post')} title="Copy Post">
+                            📋
+                          </button>
+                        </div>
+                        <div className="post-body">{parsedResult.facebook}</div>
+                        <div className="post-image-placeholder">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                          </svg>
+                          [Recommended Graphic: Concept Banner Image]
+                        </div>
+                      </div>
+                    )}
+
+                    {parsedResult && parsedResult.twitter && (
+                      <div className="post-card">
+                        <div className="post-header-row">
+                          <div className="post-header">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+                            </svg>
+                            Twitter
+                          </div>
+                          <button className="copy-icon-btn" onClick={() => handleCopy(parsedResult.twitter, 'Twitter Post')} title="Copy Post">
+                            📋
+                          </button>
+                        </div>
+                        <div className="post-body">{parsedResult.twitter}</div>
+                        <div className="post-image-placeholder">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                          </svg>
+                          [Recommended Graphic: Promotional Banner Asset]
+                        </div>
+                      </div>
+                    )}
+
+                    {parsedResult && parsedResult.instagram && (
+                      <div className="post-card">
+                        <div className="post-header-row">
+                          <div className="post-header">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                            </svg>
+                            Instagram
+                          </div>
+                          <button className="copy-icon-btn" onClick={() => handleCopy(parsedResult.instagram, 'Instagram Post')} title="Copy Post">
+                            📋
+                          </button>
+                        </div>
+                        <div className="post-body">{parsedResult.instagram}</div>
+                        <div className="post-image-placeholder">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                          </svg>
+                          [Recommended Graphic: Visual Carousel/Post Grid Asset]
+                        </div>
+                      </div>
+                    )}
+
+                    {(!parsedResult || (!parsedResult.facebook && !parsedResult.twitter && !parsedResult.instagram)) && (
+                      <p style={{ color: '#475569', fontSize: '0.85rem', fontStyle: 'italic', textAlign: 'center' }}>
+                        No social drafts detected. The full output draft includes the complete generated content.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
