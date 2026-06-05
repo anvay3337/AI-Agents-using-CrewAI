@@ -30,6 +30,26 @@ try:
 except Exception:
     pass
 
+try:
+    import httpx
+    # Patch Client
+    _orig_client_init = httpx.Client.__init__
+    def _patched_client_init(self, *args, **kwargs):
+        kwargs['http2'] = False
+        _orig_client_init(self, *args, **kwargs)
+    httpx.Client.__init__ = _patched_client_init
+
+    # Patch AsyncClient
+    _orig_async_client_init = httpx.AsyncClient.__init__
+    def _patched_async_client_init(self, *args, **kwargs):
+        kwargs['http2'] = False
+        _orig_async_client_init(self, *args, **kwargs)
+    httpx.AsyncClient.__init__ = _patched_async_client_init
+    print("✅ httpx patched: forced http2=False to prevent UNEXPECTED_EOF_WHILE_READING SSL errors")
+except Exception as e:
+    print(f"⚠️ httpx patch failed: {e}")
+
+
 from crewai.tools import tool
 from crewai_tools import SerperDevTool
 from dotenv import load_dotenv
