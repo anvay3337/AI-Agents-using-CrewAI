@@ -120,7 +120,7 @@ def create_marketing_crew():
         agent_llm = LLM(model="gpt-4o-mini", temperature=0.1)
     elif gemini_key and gemini_key != "NA":
         print("🚀 Using High-Performance Cloud LLM: Google Gemini 1.5 Flash")
-        agent_llm = LLM(model="gemini/gemini-1.5-flash", temperature=0.1)
+        agent_llm = LLM(model="gemini/gemini-1.5-flash", temperature=0.1, use_native=False)
     elif groq_key and groq_key != "NA":
         print("🚀 Using High-Performance Cloud LLM: Groq Llama 3.3 70B")
         agent_llm = LLM(model="groq/llama-3.3-70b-specdec", temperature=0.1)
