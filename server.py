@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import the crew factory from main.py
-from main import create_marketing_crew, reset_termination, request_termination
+from main import create_marketing_crew, reset_termination, request_termination, is_termination_requested
 
 app = FastAPI(title="CrewAI Marketing Agent API")
 
