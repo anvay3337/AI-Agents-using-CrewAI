@@ -108,19 +108,24 @@ def clean_and_parse_line(line):
         
     # Detect task starts
     if cleaned_line.startswith("Name:"):
-        task_name = cleaned_line.replace("Name:", "").strip()
+        task_name = cleaned_line.replace("Name:", "").strip().lower()
         task_id = None
-        if "Search the web" in task_name or "research" in task_name.lower():
-            task_id = "research"
-        elif "write" in task_name.lower() or "blog post" in task_name.lower():
+        
+        # Check writing task (starts with 'Using the market research report')
+        if "using the market research" in task_name or "write" in task_name or "blog post" in task_name:
             task_id = "writing"
-        elif "optimize" in task_name.lower() or "seo" in task_name.lower():
-            task_id = "seo"
-        elif "distribute" in task_name.lower() or "distribution" in task_name.lower():
+        # Check distribution task (starts with 'Based on the SEO-optimized')
+        elif "based on the seo-optimized" in task_name or "distribute" in task_name or "distribution" in task_name:
             task_id = "distribution"
+        # Check research task (starts with 'Search the web' or 'Compile a comprehensive')
+        elif "compile a comprehensive" in task_name or "search the web" in task_name or "research" in task_name:
+            task_id = "research"
+        # Check SEO task (starts with 'Analyze the draft article and optimize')
+        elif "optimize" in task_name or "seo" in task_name:
+            task_id = "seo"
             
         if task_id:
-            return {"type": "task_start", "task_id": task_id, "task_name": task_name}
+            return {"type": "task_start", "task_id": task_id, "task_name": cleaned_line.replace("Name:", "").strip()}
             
     # Detect task completion
     if "Task Completed" in cleaned_line:
