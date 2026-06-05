@@ -49,22 +49,32 @@ def clean_and_parse_line(line):
     if not line:
         return None
     
-    # Filter out ASCII box-drawing characters and layout frames
-    if any(char in line for char in ['┌', '─', '┐', '│', '└', '┘', '═', '╔', '╗', '╚', '╝']):
+    # Check if this line is purely a box border (e.g. ┌────, └────, etc.)
+    border_chars = set('┌─┐│└┘═╔╗╚╝─')
+    stripped_for_border_check = ''.join(c for c in line if c not in border_chars).strip()
+    if not stripped_for_border_check:
+        return None
+        
+    # Strip leading/trailing vertical bars and box outlines to process inner content
+    cleaned_line = line.strip('│┌┐└┘═╔╗╚╝─').strip()
+    if not cleaned_line:
         return None
         
     # Filter out generic lifecycle tags
-    if line in ['Task Started', 'Task Completed', 'Tool Completed', 'Agent Started']:
+    if cleaned_line in ['Task Started', 'Task Completed', 'Tool Completed', 'Agent Started']:
+        return None
+    cleaned_line_no_emoji = re.sub(r'[^\x00-\x7F]+', '', cleaned_line).strip()
+    if cleaned_line_no_emoji in ['Task Started', 'Task Completed', 'Tool Completed', 'Agent Started']:
         return None
         
     # Filter out CrewAI event bus warnings and tracing messages
-    if '[CrewAIEventsBus]' in line:
+    if '[CrewAIEventsBus]' in cleaned_line:
         return None
-    if 'Tracing is disabled' in line or 'To enable tracing' in line or 'CREWAI_TRACING_ENABLED' in line:
+    if 'Tracing is disabled' in cleaned_line or 'To enable tracing' in cleaned_line or 'CREWAI_TRACING_ENABLED' in cleaned_line:
         return None
         
     # Detect agent lifecycle starts
-    agent_start_match = re.search(r'Agent:\s*([A-Za-z0-9\s\-\&]+)', line)
+    agent_start_match = re.search(r'Agent:\s*([A-Za-z0-9\s\-\&]+)', cleaned_line)
     if agent_start_match:
         agent_name = agent_start_match.group(1).strip()
         agent_id = None
@@ -77,7 +87,7 @@ def clean_and_parse_line(line):
         return {"type": "agent_start", "agent_id": agent_id, "agent_name": agent_name}
         
     # Detect tool starts
-    tool_start_match = re.search(r'Tool:\s*([A-Za-z0-9_]+)', line)
+    tool_start_match = re.search(r'Tool:\s*([A-Za-z0-9_]+)', cleaned_line)
     if tool_start_match:
         tool_name = tool_start_match.group(1).strip()
         # Map to user friendly name
@@ -89,16 +99,16 @@ def clean_and_parse_line(line):
         return {"type": "tool_start", "tool_name": friendly_tool}
         
     # Ignore raw tool arguments to avoid exposing JSON details in user view
-    if line.startswith("Args:"):
+    if cleaned_line.startswith("Args:"):
         return None
         
     # Detect tool completions (we hide the actual result block from the log but emit an end notification)
-    if (line.startswith("Tool ") and "executed with result:" in line) or "Tool Completed" in line:
+    if (cleaned_line.startswith("Tool ") and "executed with result:" in cleaned_line) or "Tool Completed" in cleaned_line:
         return {"type": "tool_end"}
         
     # Detect task starts
-    if line.startswith("Name:"):
-        task_name = line.replace("Name:", "").strip()
+    if cleaned_line.startswith("Name:"):
+        task_name = cleaned_line.replace("Name:", "").strip()
         task_id = None
         if "Search the web" in task_name or "research" in task_name.lower():
             task_id = "research"
@@ -113,22 +123,22 @@ def clean_and_parse_line(line):
             return {"type": "task_start", "task_id": task_id, "task_name": task_name}
             
     # Detect task completion
-    if "Task Completed" in line:
+    if "Task Completed" in cleaned_line:
         return {"type": "task_end"}
         
     # Suppress final answers or raw outputs in the console log
-    if "Final Answer:" in line or "CREW RUN COMPLETE" in line:
+    if "Final Answer:" in cleaned_line or "CREW RUN COMPLETE" in cleaned_line:
         return None
-    if line.startswith("{") and line.endswith("}"):
+    if cleaned_line.startswith("{") and cleaned_line.endswith("}"):
         return None
-    if "todos_count=" in line or "todos_with_results=" in line:
+    if "todos_count=" in cleaned_line or "todos_with_results=" in cleaned_line:
         return None
 
     # Limit long lines (e.g. residual raw output leaks)
-    if len(line) > 200:
-        line = line[:197] + "..."
+    if len(cleaned_line) > 200:
+        cleaned_line = cleaned_line[:197] + "..."
         
-    return {"type": "status", "message": line}
+    return {"type": "status", "message": cleaned_line}
 
 
 class QueueWriter:
