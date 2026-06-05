@@ -197,6 +197,7 @@ def run_crew(topic: str = Query(..., description="Topic to run market research o
         # Temporarily redirect stdout and stderr
         sys.stdout = writer
         sys.stderr = writer
+        crew = None
         try:
             reset_termination()
             inputs = {"topic": topic}
@@ -205,6 +206,23 @@ def run_crew(topic: str = Query(..., description="Topic to run market research o
             execution_result["output"] = str(res)
             execution_result["status"] = "success"
         except Exception as e:
+            # Check if this was a termination request and we have partial outputs
+            if is_termination_requested() or "terminated" in str(e).lower():
+                partial_outputs = []
+                if crew and hasattr(crew, "tasks"):
+                    for task in crew.tasks:
+                        if hasattr(task, "output") and task.output and hasattr(task.output, "raw") and task.output.raw:
+                            task_desc = getattr(task, "description", "Task Output")
+                            # Truncate description for headers
+                            task_header = task_desc[:60] + "..." if len(task_desc) > 60 else task_desc
+                            # Clean task header description formatting
+                            task_header = task_header.replace('\n', ' ').strip()
+                            partial_outputs.append(f"## {task_header}\n{task.output.raw}\n")
+                
+                if partial_outputs:
+                    execution_result["output"] = "\n".join(partial_outputs)
+                    execution_result["status"] = "success"
+                    return
             execution_result["error"] = str(e)
             execution_result["status"] = "error"
         finally:
