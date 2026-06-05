@@ -68,6 +68,38 @@ def search_tool(search_query: str) -> str:
     except Exception as e:
         return f"Error executing web search: {str(e)}"
 
+@tool("Scrape Website Tool")
+def scrape_website_tool(url: str) -> str:
+    """Scrapes the text content of a given URL (webpage) and returns a clean plain-text representation of the page."""
+    from bs4 import BeautifulSoup
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Remove navigation, headers, footers, script, and style elements to isolate core content
+        for element in soup(["script", "style", "nav", "footer", "header"]):
+            element.decompose()
+            
+        text = soup.get_text()
+        
+        # Clean up whitespace and empty lines
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text_content = '\n'.join(chunk for chunk in chunks if chunk)
+        
+        # Truncate to avoid exceeding LLM context window limits
+        if len(text_content) > 8000:
+            text_content = text_content[:8000] + "\n\n[Content truncated due to length limits...]"
+            
+        return text_content
+    except Exception as e:
+        return f"Error scraping website: {str(e)}"
+
 @tool("SEO Keyword Analysis Tool")
 def seo_keyword_tool(topic: str) -> str:
     """Analyzes a topic and returns a list of high-traffic SEO keywords and search intent trends."""
@@ -120,10 +152,13 @@ def create_marketing_crew():
 
     # Task 1: Research (Market Researcher)
     research_task = Task(
-        description="Search the web and compile a comprehensive market research report about: '{topic}'. Focus on key challenges, trends, and opportunities.",
+        description="""Compile a comprehensive market research report about: '{topic}'. 
+If '{topic}' is a URL (starts with http:// or https://), use the Scrape Website Tool to read and analyze its content directly. 
+Otherwise, use the Web Search Tool to search for information on the topic. 
+Focus on key challenges, trends, and opportunities.""",
         expected_output="A detailed market research report containing key findings, trends, and user pain points.",
         agent=market_researcher,
-        tools=[search_tool]
+        tools=[search_tool, scrape_website_tool]
     )
 
     # Task 2: Write (Content Creator)

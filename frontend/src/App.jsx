@@ -105,7 +105,7 @@ function App() {
                 id="topic-input"
                 type="text"
                 className="text-input"
-                placeholder="e.g. Best movies of this year, Quantum Computing in 2026..."
+                placeholder="e.g. https://example.com/article, Quantum Computing in 2026..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 disabled={running}
