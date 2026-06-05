@@ -292,7 +292,7 @@ Focus on key challenges, trends, and opportunities.""",
         description="""Based on the SEO-optimized article from the previous task, compile a complete strategic campaign document. 
 Perform two actions:
 1. Include the full, SEO-optimized blog post from the previous task under a '## Strategic Blog Post' heading.
-2. Create a content distribution plan specifying target platforms (e.g., LinkedIn, Twitter, newsletters) and draft promotional social media posts.
+2. Create a content distribution plan specifying target platforms (e.g., LinkedIn, Twitter, Quora, newsletters) and draft promotional social media posts.
 
 Your final response MUST be structured exactly as follows:
 ## Strategic Blog Post
@@ -310,8 +310,11 @@ Your final response MUST be structured exactly as follows:
 
 **Instagram Post:**
 [Insert Instagram post draft here]
+
+**Quora Post:**
+[Insert a long-form Quora answer (400-600 words) framed as answering a relevant question such as "What is the best enterprise backup solution?" or "How do I protect my business data from ransomware?". Write as a helpful, authoritative Quora answer: start with a direct answer, provide context, key facts, and a recommendation. Do NOT use hashtags. End with a subtle, non-promotional CTA.]
 """,
-        expected_output="A document containing the strategic blog post, the content distribution plan, and the social media promotional posts.",
+        expected_output="A document containing the strategic blog post, the content distribution plan, and the social media promotional posts including a tailored Quora answer.",
         agent=marketing_specialist
     )
 

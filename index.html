@@ -810,8 +810,14 @@
       // Elapsed timer state
       const [elapsedTime, setElapsedTime] = useState(0);
 
-      // Active agent and tool tracking states
-      const [activeAgent, setActiveAgent] = useState(null);
+      // Active agent and tool tracking states using ref to avoid stale closures in EventSource
+      const [activeAgent, _setActiveAgent] = useState(null);
+      const activeAgentRef = useRef(null);
+      const setActiveAgent = (val) => {
+        activeAgentRef.current = val;
+        _setActiveAgent(val);
+      };
+      
       const [activeTool, setActiveTool] = useState(null);
       const [activeTask, setActiveTask] = useState(null);
       
@@ -839,8 +845,6 @@
           timer = setInterval(() => {
             setElapsedTime((prev) => prev + 1);
           }, 1000);
-        } else {
-          setElapsedTime(0);
         }
         return () => clearInterval(timer);
       }, [running]);
@@ -881,6 +885,7 @@
         setLogs([]);
         setResult(null);
         setError(null);
+        setElapsedTime(0);
         setSystemStatus('PROCESSING');
         setActiveAgent(null);
         setActiveTool(null);
@@ -938,7 +943,7 @@
                 time: timestamp,
                 type: 'tool',
                 text: `🔧 Core Module: Executing external search utility - ${data.tool_name}...`,
-                agentId: activeAgent
+                agentId: activeAgentRef.current
               }]);
             }
             else if (data.type === 'tool_end') {
@@ -948,7 +953,7 @@
                 time: timestamp,
                 type: 'tool_end',
                 text: `✅ Utility operations completed. Processing results.`,
-                agentId: activeAgent
+                agentId: activeAgentRef.current
               }]);
             }
             else if (data.type === 'status') {
@@ -957,7 +962,7 @@
                 time: timestamp,
                 type: 'status',
                 text: data.message,
-                agentId: activeAgent
+                agentId: activeAgentRef.current
               }]);
             }
             else if (data.type === 'result') {
@@ -1091,11 +1096,14 @@
                              text.match(/Twitter Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
         const instagramMatch = text.match(/\*\*Instagram Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
                                text.match(/Instagram Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+        const quoraMatch = text.match(/\*\*Quora Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+|$)/i) ||
+                           text.match(/Quora Post:\s*\n?\s*([\s\S]*?)(?=\n\n\*\*|\n---|\.\s*$|$)/i);
 
         return {
           facebook: facebookMatch ? facebookMatch[1].trim() : null,
           twitter: twitterMatch ? twitterMatch[1].trim() : null,
           instagram: instagramMatch ? instagramMatch[1].trim() : null,
+          quora: quoraMatch ? quoraMatch[1].trim() : null,
         };
       };
 
@@ -1136,8 +1144,12 @@
               <div className="stat-value text-teal">{running ? '3 Agents Engaged' : '0 Agents Active'}</div>
             </div>
             <div className="core-stat-card glass-card">
-              <div className="stat-label">Processing Duration</div>
-              <div className="stat-value text-amber">{formatTime(elapsedTime)}</div>
+              <div className="stat-label">
+                {running ? '⏱ Processing Duration' : systemStatus === 'COMPLETED' ? '✓ Completed In' : systemStatus === 'FAILED' ? '✗ Failed After' : 'Processing Duration'}
+              </div>
+              <div className="stat-value text-amber">
+                {formatTime(elapsedTime)}
+              </div>
             </div>
           </section>
 
@@ -1437,7 +1449,22 @@
                       </div>
                     )}
 
-                    {(!parsedResult || (!parsedResult.facebook && !parsedResult.twitter && !parsedResult.instagram)) && (
+                    {parsedResult && parsedResult.quora && (
+                      <div className="post-card">
+                        <div className="post-header-row">
+                          <div className="post-header">
+                            <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: '800', color: '#b92b27', marginRight: '6px', fontSize: '1.1rem', lineHeight: '1' }}>Q</span>
+                            Quora Answer
+                          </div>
+                          <button className="copy-icon-btn" onClick={() => handleCopy(parsedResult.quora, 'Quora Answer')} title="Copy Answer">
+                            📋
+                          </button>
+                        </div>
+                        <div className="post-body" style={{ whiteSpace: 'pre-wrap' }}>{parsedResult.quora}</div>
+                      </div>
+                    )}
+
+                    {(!parsedResult || (!parsedResult.facebook && !parsedResult.twitter && !parsedResult.instagram && !parsedResult.quora)) && (
                       <p style={{ color: '#475569', fontSize: '0.85rem', fontStyle: 'italic', textAlign: 'center' }}>
                         No social drafts detected. The full output draft includes the complete generated content.
                       </p>
