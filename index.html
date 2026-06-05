@@ -998,13 +998,25 @@
       
       // API Base URL config
       const [apiBaseUrl, setApiBaseUrl] = useState(() => {
-        return localStorage.getItem('marketing_crew_api_base') || '';
+        const stored = localStorage.getItem('marketing_crew_api_base');
+        if (stored !== null) return stored;
+        // Default to http://localhost:8000 if page is hosted on a remote domain (like Netlify)
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        return isLocalHost ? '' : 'http://localhost:8000';
       });
       const [showSettings, setShowSettings] = useState(false);
       const [copiedState, setCopiedState] = useState({});
 
       const getApiUrl = (path) => {
-        const base = apiBaseUrl.trim().replace(/\/+$/, '');
+        let base = apiBaseUrl.trim().replace(/\/+$/, '');
+        // Clean up full URL pastes if the user mistakenly pasted the entire endpoint path
+        if (base.endsWith('/api/run')) {
+          base = base.substring(0, base.length - 8);
+        } else if (base.endsWith('/api/terminate')) {
+          base = base.substring(0, base.length - 14);
+        } else if (base.endsWith('/api')) {
+          base = base.substring(0, base.length - 4);
+        }
         return base ? `${base}${path}` : path;
       };
       
