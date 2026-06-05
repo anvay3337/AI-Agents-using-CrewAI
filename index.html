@@ -1007,15 +1007,6 @@
         const base = apiBaseUrl.trim().replace(/\/+$/, '');
         return base ? `${base}${path}` : path;
       };
-
-      // Agent Selector States
-      const [enabledAgents, setEnabledAgents] = useState({
-        researcher: true,
-        writer: true,
-        seo: true
-      });
-      const [blogDraft, setBlogDraft] = useState('');
-      const [researchReport, setResearchReport] = useState('');
       
       // Task progress tracker states
       const [taskStatus, setTaskStatus] = useState({
