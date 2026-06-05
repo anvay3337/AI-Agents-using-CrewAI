@@ -32,9 +32,16 @@ function App() {
       try {
         const data = JSON.parse(event.data);
 
-        if (data.type === 'log') {
-          // Add log text
-          setLogs((prev) => [...prev, data.text]);
+        if (data.type === 'status') {
+          setLogs((prev) => [...prev, data.message]);
+        } else if (data.type === 'agent_start') {
+          setLogs((prev) => [...prev, `🤖 Agent: ${data.agent_name}`]);
+        } else if (data.type === 'tool_start') {
+          setLogs((prev) => [...prev, `🔧 Tool: ${data.tool_name}`]);
+        } else if (data.type === 'tool_end') {
+          setLogs((prev) => [...prev, `✅ Tool Execution Complete.`]);
+        } else if (data.type === 'task_start') {
+          setLogs((prev) => [...prev, `🚀 Task Started: ${data.task_name}`]);
         } else if (data.type === 'result') {
           setResult(data.output);
           setRunning(false);
