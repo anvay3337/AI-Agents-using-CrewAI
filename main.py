@@ -255,8 +255,37 @@ def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, r
     # Agent 3: Marketing Specialist (uses SEO Keyword Tool)
     marketing_specialist = Agent(
         role="SEO and Distribution Specialist",
-        goal="Optimize content for search engines using SEO keywords and outline a distribution strategy.",
-        backstory="You are a digital marketing guru who understands search engine algorithms and content distribution channels to maximize reach and conversion.",
+        goal="Optimize content for search engines using SEO keywords and outline a highly specific, deep, and actionable distribution strategy.",
+        backstory="""You are an expert digital marketing guru and senior research analyst. Your job is to produce deep, specific, and genuinely useful responses — never generic.
+
+BEFORE RESPONDING:
+1. Break the question into sub-questions worth investigating
+2. Identify what a surface-level answer would look like — then go deeper than that
+3. Ask yourself: "Would an expert in this field find this response useful?"
+
+RESEARCH STANDARDS:
+- Lead with the most non-obvious, high-value insight first
+- Back every claim with reasoning, data, examples, or source references
+- Include specific numbers, names, dates, case studies, or mechanisms — not vague generalities
+- If something is contested or uncertain, say so explicitly
+- Prioritize depth on 3 key points over shallow coverage of 10
+
+RESPONSE STRUCTURE:
+- Start with the core insight (not a preamble or restatement of the question)
+- Use examples from real-world cases, research, or industry practice
+- End with an actionable takeaway or the most important implication
+
+WHAT TO AVOID:
+- Filler phrases ("Great question!", "Certainly!", "In today's world...")
+- Restating the question before answering it
+- Bullet lists of obvious points with no depth
+- Hedging everything into meaninglessness
+- Generic advice that applies to every situation equally
+
+TONE:
+- Write like a senior expert briefing a peer — direct, confident, specific
+- Match the complexity of the answer to the complexity of the question
+- Be concise where possible, thorough where necessary""",
         tools=[],
         llm=agent_llm,
         verbose=True,
@@ -284,7 +313,8 @@ Focus on key challenges, trends, and opportunities.""",
 
     # Task 3: Refine (Marketing Specialist)
     refine_task = Task(
-        description="Analyze the draft article and optimize it for SEO. Use the SEO Keyword Tool exactly once to analyze the topic '{topic}' for relevant search terms, insert them naturally, write meta tags, and suggest heading updates.",
+        description="""Analyze the draft article and optimize it for SEO. Use the SEO Keyword Tool exactly once to analyze the topic '{topic}' for relevant search terms, insert them naturally, write meta tags, and suggest heading updates.
+Ensure the optimized content is of the highest professional standard: lead with non-obvious, high-value insights, use specific data or real-world examples, avoid generic advice or filler language, and prioritize depth over shallow coverage.""",
         expected_output="An SEO-optimized version of the article with a list of keywords used, target meta title, and meta description.",
         agent=marketing_specialist,
         tools=[seo_keyword_tool]
@@ -296,6 +326,15 @@ Focus on key challenges, trends, and opportunities.""",
 Perform two actions:
 1. Include the full, SEO-optimized blog post from the previous task under a '## Strategic Blog Post' heading.
 2. Create a content distribution plan specifying target platforms (e.g., LinkedIn, Twitter, Quora, newsletters) and draft promotional social media posts.
+
+Make sure your strategic distribution plan and promotional posts adhere to these standards:
+- Genuinely useful and deep response — never generic.
+- Lead with the most non-obvious, high-value insight first.
+- Back every claim with reasoning, data, examples, or source references.
+- Include specific numbers, names, dates, case studies, or mechanisms — not vague generalities.
+- Avoid filler phrases, restating the question, or bullet lists of obvious points with no depth.
+- Tone must be direct, confident, specific, and structured like a senior expert briefing a peer.
+- The Quora post MUST be a long-form Quora answer (400-600 words) that directly answers a target question with real depth and analysis, ending with a subtle, non-promotional CTA.
 
 Your final response MUST be structured exactly as follows:
 ## Strategic Blog Post
@@ -315,7 +354,7 @@ Your final response MUST be structured exactly as follows:
 [Insert Instagram post draft here]
 
 **Quora Post:**
-[Insert a long-form Quora answer (400-600 words) framed as answering a relevant question such as "What is the best enterprise backup solution?" or "How do I protect my business data from ransomware?". Write as a helpful, authoritative Quora answer: start with a direct answer, provide context, key facts, and a recommendation. Do NOT use hashtags. End with a subtle, non-promotional CTA.]
+[Insert the long-form Quora answer here]
 """,
         expected_output="A document containing the strategic blog post, the content distribution plan, and the social media promotional posts including a tailored Quora answer.",
         agent=marketing_specialist
@@ -351,7 +390,8 @@ Write an informative blog post or article. Ensure the tone is engaging and fits 
             # Override description to read the user-supplied blog draft directly
             refine_task = Task(
                 description="""Analyze the provided draft article and optimize it for SEO. Draft article content: {blog_draft}
-Use the SEO Keyword Tool exactly once to analyze the topic '{topic}' for relevant search terms, insert them naturally, write meta tags, and suggest heading updates.""",
+Use the SEO Keyword Tool exactly once to analyze the topic '{topic}' for relevant search terms, insert them naturally, write meta tags, and suggest heading updates.
+Ensure the optimized content is of the highest professional standard: lead with non-obvious, high-value insights, use specific data or real-world examples, avoid generic advice or filler language, and prioritize depth over shallow coverage.""",
                 expected_output="An SEO-optimized version of the article with a list of keywords used, target meta title, and meta description.",
                 agent=marketing_specialist,
                 tools=[seo_keyword_tool]
