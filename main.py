@@ -111,9 +111,9 @@ def create_marketing_crew():
     import os
     
     # Check if a high-speed cloud LLM key is configured in env
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    gemini_key = os.environ.get("GEMINI_API_KEY")
-    groq_key = os.environ.get("GROQ_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip().strip('"').strip("'")
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip().strip('"').strip("'")
+    groq_key = os.environ.get("GROQ_API_KEY", "").strip().strip('"').strip("'")
     
     if openai_key and openai_key != "NA":
         print("🚀 Using High-Performance Cloud LLM: OpenAI GPT-4o-mini")
