@@ -1,5 +1,7 @@
 import sys
 import io
+import ssl
+import os
 
 # Force standard streams to UTF-8 on Windows to prevent cp1252 encoding errors
 if hasattr(sys.stdout, 'reconfigure'):
@@ -7,12 +9,91 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8')
 
+# --- SSL Fix for network/proxy environments ---
+# Some ISPs and corporate firewalls do SSL inspection which breaks strict SSL.
+# This patches the default SSL context to allow such connections.
+os.environ["PYTHONHTTPSVERIFY"] = "0"
+os.environ["CURL_CA_BUNDLE"] = ""
+os.environ["REQUESTS_CA_BUNDLE"] = ""
+
+_orig_create_default_context = ssl.create_default_context
+def _patched_ssl_context(*args, **kwargs):
+    ctx = _orig_create_default_context(*args, **kwargs)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+ssl.create_default_context = _patched_ssl_context
+
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
+
 from crewai.tools import tool
 from crewai_tools import SerperDevTool
 from dotenv import load_dotenv
 from crewai import Agent
 from crewai import Task
 from crewai import Crew, Process
+
+# --- LiteLLM Groq fix: strip cache_breakpoint + auto-retry on rate limits ---
+# Groq rejects 'cache_breakpoint'. Also auto-sleeps on TPM rate limits so
+# the crew never crashes mid-run — it simply waits and continues.
+try:
+    import re as _re
+    import time as _time
+    import litellm as _litellm
+    from litellm.exceptions import RateLimitError as _RateLimitError
+
+    _orig_completion = _litellm.completion
+
+    def _strip_cache_keys_from_messages(messages):
+        """Remove Groq-unsupported cache properties from all messages."""
+        cleaned = []
+        for msg in messages:
+            m = dict(msg)
+            for key in ("cache_breakpoint", "cache_control", "cache"):
+                m.pop(key, None)
+            if isinstance(m.get("content"), list):
+                new_content = []
+                for block in m["content"]:
+                    b = dict(block)
+                    for key in ("cache_breakpoint", "cache_control", "cache"):
+                        b.pop(key, None)
+                    new_content.append(b)
+                m["content"] = new_content
+            cleaned.append(m)
+        return cleaned
+
+    def _patched_completion(*args, **kwargs):
+        if "messages" in kwargs:
+            kwargs["messages"] = _strip_cache_keys_from_messages(kwargs["messages"])
+        elif len(args) >= 2:
+            args = list(args)
+            args[1] = _strip_cache_keys_from_messages(args[1])
+            args = tuple(args)
+
+        # Auto-retry with sleep on rate limits (up to 10 attempts)
+        for _attempt in range(10):
+            try:
+                return _orig_completion(*args, **kwargs)
+            except _RateLimitError as _rle:
+                _msg = str(_rle)
+                # Parse "try again in X.XXs" from error message
+                _match = _re.search(r'try again in ([0-9.]+)s', _msg)
+                _wait = float(_match.group(1)) + 3 if _match else 35
+                print(f"\n⏳ [Rate Limit] Groq TPM limit hit. Sleeping {_wait:.1f}s then retrying... (attempt {_attempt+1}/10)")
+                _time.sleep(_wait)
+                continue
+        return _orig_completion(*args, **kwargs)  # final attempt, let it raise
+
+    _litellm.completion = _patched_completion
+    _litellm.cache = None
+    _litellm.ssl_verify = False
+    print("✅ LiteLLM patched: cache_breakpoint stripping + rate-limit auto-retry enabled")
+except Exception as _e:
+    print(f"⚠️  LiteLLM patch skipped: {_e}")
 
 # Shared execution state for mid-run termination
 _state = {
@@ -122,8 +203,20 @@ def create_marketing_crew():
         print("🚀 Using High-Performance Cloud LLM: Google Gemini 1.5 Flash")
         agent_llm = LLM(model="gemini/gemini-1.5-flash", temperature=0.1, use_native=False)
     elif groq_key and groq_key != "NA":
-        print("🚀 Using High-Performance Cloud LLM: Groq Llama 3.3 70B")
-        agent_llm = LLM(model="groq/llama-3.3-70b-specdec", temperature=0.1)
+        print("🚀 Using High-Performance Cloud LLM: Groq Llama3.1 8B Instant")
+        os.environ["GROQ_API_KEY"] = groq_key
+        try:
+            import litellm as _litellm_inner
+            _litellm_inner.ssl_verify = False
+            _litellm_inner.cache = None
+        except Exception:
+            pass
+        agent_llm = LLM(
+            model="groq/llama-3.1-8b-instant",
+            temperature=0.1,
+            api_key=groq_key,
+            max_retries=5
+        )
     else:
         print("🐢 Using Local LLM: Ollama Llama 3.2 (Expect longer processing times)")
         agent_llm = LLM(
@@ -232,7 +325,7 @@ Your final response MUST be structured exactly as follows:
         tasks=[research_task, write_task, refine_task, distribute_task],
         process=Process.sequential,
         verbose=True,
-        cache=True,
+        cache=False,  # Disabled: Groq rejects cache_breakpoint in messages
         step_callback=check_termination_callback
     )
 
