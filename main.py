@@ -108,11 +108,29 @@ def seo_keyword_tool(topic: str) -> str:
 
 def create_marketing_crew():
     from crewai import LLM
-    ollama_llm = LLM(
-        model="ollama/llama3.2",
-        base_url="http://localhost:11434",
-        temperature=0.1
-    )
+    import os
+    
+    # Check if a high-speed cloud LLM key is configured in env
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    groq_key = os.environ.get("GROQ_API_KEY")
+    
+    if openai_key and openai_key != "NA":
+        print("🚀 Using High-Performance Cloud LLM: OpenAI GPT-4o-mini")
+        agent_llm = LLM(model="gpt-4o-mini", temperature=0.1)
+    elif gemini_key and gemini_key != "NA":
+        print("🚀 Using High-Performance Cloud LLM: Google Gemini 1.5 Flash")
+        agent_llm = LLM(model="gemini/gemini-1.5-flash", temperature=0.1)
+    elif groq_key and groq_key != "NA":
+        print("🚀 Using High-Performance Cloud LLM: Groq Llama 3.3 70B")
+        agent_llm = LLM(model="groq/llama-3.3-70b-specdec", temperature=0.1)
+    else:
+        print("🐢 Using Local LLM: Ollama Llama 3.2 (Expect longer processing times)")
+        agent_llm = LLM(
+            model="ollama/llama3.2",
+            base_url="http://localhost:11434",
+            temperature=0.1
+        )
 
 
     # Agent 1: Market Researcher (uses Web Search Tool)
@@ -121,7 +139,7 @@ def create_marketing_crew():
         goal="Gather and analyze the latest market trends, competitor activities, and user needs regarding a topic.",
         backstory="You are a seasoned analyst with an eye for detail. You excel at filtering noise to find valuable market insights using web search tools.",
         tools=[],
-        llm=ollama_llm,
+        llm=agent_llm,
         verbose=True,
         max_iter=2,
         allow_delegation=False
@@ -132,7 +150,7 @@ def create_marketing_crew():
         role="Expert Content Creator",
         goal="Draft high-quality, engaging, and clear articles or reports based on market research reports.",
         backstory="You are a creative writer who knows how to capture reader attention. You translate raw analytical data into compelling narratives.",
-        llm=ollama_llm,
+        llm=agent_llm,
         verbose=True,
         max_iter=1,
         allow_delegation=False
@@ -144,7 +162,7 @@ def create_marketing_crew():
         goal="Optimize content for search engines using SEO keywords and outline a distribution strategy.",
         backstory="You are a digital marketing guru who understands search engine algorithms and content distribution channels to maximize reach and conversion.",
         tools=[],
-        llm=ollama_llm,
+        llm=agent_llm,
         verbose=True,
         max_iter=2,
         allow_delegation=False
