@@ -1001,9 +1001,17 @@
       const [apiBaseUrl, setApiBaseUrl] = useState(() => {
         const stored = localStorage.getItem('marketing_crew_api_base');
         if (stored !== null) return stored;
-        // Default to http://localhost:8000 if page is hosted on a remote domain (like Netlify)
-        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        return isLocalHost ? '' : 'http://localhost:8000';
+        
+        const host = window.location.hostname.toLowerCase();
+        // Default to http://localhost:8001 if page is hosted on a known static frontend service (like Netlify, Vercel, etc.)
+        const isStaticHost = host.endsWith('.netlify.app') || 
+                             host.endsWith('.vercel.app') || 
+                             host.endsWith('.github.io') || 
+                             host.endsWith('.gitlab.io') || 
+                             host.endsWith('.pages.dev');
+        
+        const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+        return (isLocalHost || !isStaticHost) ? '' : 'http://localhost:8001';
       });
       const [showSettings, setShowSettings] = useState(false);
       const [copiedState, setCopiedState] = useState({});

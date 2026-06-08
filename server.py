@@ -294,5 +294,7 @@ def terminate_crew():
 
 if __name__ == "__main__":
     import uvicorn
-    # Run the server on port 8000
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    import os
+    # Run the server on the port specified by the environment variable, defaulting to 8001
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)

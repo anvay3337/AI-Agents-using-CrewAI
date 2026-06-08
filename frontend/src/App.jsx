@@ -25,7 +25,33 @@ function App() {
     setResult(null);
     setError(null);
 
-    const backendUrl = `http://localhost:8000/api/run?topic=${encodeURIComponent(topic)}`;
+    const backendBaseUrl = (() => {
+      if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+      }
+      const host = window.location.hostname.toLowerCase();
+      const port = window.location.port;
+
+      // Default to localhost:8001 for local Vite dev server
+      if ((host === 'localhost' || host === '127.0.0.1') && port !== '8001') {
+        return 'http://localhost:8001';
+      }
+
+      // Default to localhost:8001 for known static hosts (Netlify/Vercel) during local tests
+      const isStaticHost = host.endsWith('.netlify.app') ||
+        host.endsWith('.vercel.app') ||
+        host.endsWith('.github.io') ||
+        host.endsWith('.gitlab.io') ||
+        host.endsWith('.pages.dev');
+
+      if (isStaticHost) {
+        return 'http://localhost:8001';
+      }
+
+      return '';
+    })();
+
+    const backendUrl = `${backendBaseUrl}/api/run?topic=${encodeURIComponent(topic)}`;
     const eventSource = new EventSource(backendUrl);
 
     eventSource.onmessage = (event) => {
@@ -58,7 +84,7 @@ function App() {
 
     eventSource.onerror = (err) => {
       console.error('EventSource error:', err);
-      setError('Connection lost or failed to connect to backend server. Make sure server.py is running on port 8000.');
+      setError('Connection lost or failed to connect to backend server. Make sure the backend server is running and accessible.');
       setRunning(false);
       eventSource.close();
     };
@@ -67,14 +93,14 @@ function App() {
   // Helper to parse social posts from the final output markdown
   const parseResult = (text) => {
     if (!text) return null;
-    
+
     // Look for posts
-    const facebookMatch = text.match(/\*\*Facebook Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) || 
-                          text.match(/Facebook Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+    const facebookMatch = text.match(/\*\*Facebook Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
+      text.match(/Facebook Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
     const twitterMatch = text.match(/\*\*Twitter Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
-                         text.match(/Twitter Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+      text.match(/Twitter Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
     const instagramMatch = text.match(/\*\*Instagram Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
-                           text.match(/Instagram Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
+      text.match(/Instagram Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
 
     return {
       facebook: facebookMatch ? facebookMatch[1].trim() : null,
@@ -119,7 +145,7 @@ function App() {
                 ) : (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Start Run
                   </>
@@ -162,7 +188,7 @@ function App() {
         <section className="glass-card" style={{ borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.08)' }}>
           <h3 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
             Execution Error
           </h3>
@@ -177,11 +203,11 @@ function App() {
           <div className="result-main glass-card">
             <h2 className="result-section-title">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <line x1="10" y1="9" x2="8" y2="9"/>
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <line x1="10" y1="9" x2="8" y2="9" />
               </svg>
               Final Generated Report & Strategy
             </h2>
@@ -200,7 +226,7 @@ function App() {
                   const parts = para.split(boldRegex);
                   return (
                     <p key={i}>
-                      {parts.map((part, index) => 
+                      {parts.map((part, index) =>
                         index % 2 === 1 ? <strong key={index} style={{ color: '#ffffff' }}>{part}</strong> : part
                       )}
                     </p>
@@ -216,7 +242,7 @@ function App() {
             <div className="glass-card">
               <h2 className="result-section-title">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                 </svg>
                 Social Media Posts
               </h2>
@@ -226,14 +252,14 @@ function App() {
                   <div className="post-card">
                     <div className="post-header">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+                        <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
                       </svg>
                       Facebook Post
                     </div>
                     <div className="post-body">{parsedResult.facebook}</div>
                     <div className="post-image-placeholder">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
                       </svg>
                       [Infographic / Banner Suggestion Included]
                     </div>
@@ -244,14 +270,14 @@ function App() {
                   <div className="post-card">
                     <div className="post-header">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"/>
+                        <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z" />
                       </svg>
                       Twitter Post
                     </div>
                     <div className="post-body">{parsedResult.twitter}</div>
                     <div className="post-image-placeholder">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
                       </svg>
                       [Promotional Graphics Suggestion Included]
                     </div>
@@ -262,14 +288,14 @@ function App() {
                   <div className="post-card">
                     <div className="post-header">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+                        <rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                       </svg>
                       Instagram Post
                     </div>
                     <div className="post-body">{parsedResult.instagram}</div>
                     <div className="post-image-placeholder">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
                       </svg>
                       [Visually Appealing Graphic Suggestion Included]
                     </div>
