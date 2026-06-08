@@ -8,10 +8,10 @@ services:
       - key: PORT
         value: 8001
       - key: GROQ_API_KEY
-        sync: true
+        value: "gsk_..."
       - key: SERPER_API_KEY
-        sync: true
+        value: "c8ac..."
       - key: OPENAI_API_KEY
-        sync: true
+        value: "NA"
       - key: GEMINI_API_KEY
-        sync: true
+        value: "NA"
