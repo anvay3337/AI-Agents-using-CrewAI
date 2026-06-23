@@ -24,6 +24,24 @@ from typing import Optional, List
 # Load env variables
 load_dotenv()
 
+# Print environment diagnostic information (masking keys)
+import os
+print("=== ENVIRONMENT DIAGNOSTICS ===")
+for key in ["OPENAI_API_KEY", "GROQ_API_KEY", "GEMINI_API_KEY", "GEMINI_IMAGE_API_KEY", "SERPER_API_KEY", "PORT", "RAILWAY_ENVIRONMENT"]:
+    val = os.environ.get(key)
+    if val is None:
+        print(f"  {key}: NOT SET")
+    elif val == "":
+        print(f"  {key}: EMPTY STRING")
+    else:
+        # Mask key for security
+        masked = val[:6] + "..." + val[-4:] if len(val) > 10 else "SET (short)"
+        if key == "PORT" or key == "RAILWAY_ENVIRONMENT":
+            masked = val
+        print(f"  {key}: {masked}")
+print("===============================")
+
+
 # Import the crew factory from main.py (deferred to prevent circular import issues)
 
 app = FastAPI(title="CrewAI Marketing Agent API")
