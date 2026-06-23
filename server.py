@@ -24,8 +24,7 @@ from typing import Optional, List
 # Load env variables
 load_dotenv()
 
-# Import the crew factory from main.py
-from main import create_marketing_crew, reset_termination, request_termination, is_termination_requested
+# Import the crew factory from main.py (deferred to prevent circular import issues)
 
 app = FastAPI(title="CrewAI Marketing Agent API")
 
@@ -229,6 +228,7 @@ def run_crew(request: CampaignRequest):
     execution_result = {"status": "running", "output": None, "error": None}
 
     def run_in_thread():
+        from main import create_marketing_crew, reset_termination, is_termination_requested
         # Temporarily redirect stdout and stderr
         sys.stdout = writer
         sys.stderr = writer
@@ -336,6 +336,7 @@ def run_crew(request: CampaignRequest):
 
 @app.post("/api/terminate")
 def terminate_crew():
+    from main import request_termination
     request_termination()
     return {"status": "termination_requested"}
 
