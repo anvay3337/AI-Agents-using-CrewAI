@@ -739,5 +739,12 @@ if __name__ == "__main__":
     print("######################")
     print(result)
 
+# ASGI app fallback for deployments referencing main:app
+try:
+    from server import app
+except ImportError:
+    pass
+
+
 
 
