@@ -352,8 +352,12 @@ def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, r
         print("🚀 Using High-Performance Cloud LLM: OpenAI GPT-4o-mini")
         agent_llm = LLM(model="gpt-4o-mini", temperature=0.1)
     elif gemini_key and gemini_key != "NA":
-        print("🚀 Using High-Performance Cloud LLM: Google Gemini 1.5 Flash")
-        agent_llm = LLM(model="gemini/gemini-1.5-flash", temperature=0.1, use_native=False)
+        print("🚀 Using High-Performance Cloud LLM: Google Gemini 2.0 Flash")
+        agent_llm = LLM(
+            model="gemini/gemini-2.0-flash",
+            temperature=0.1,
+            api_key=gemini_key,
+        )
     elif groq_key and groq_key != "NA":
         print("🚀 Using High-Performance Cloud LLM: Groq Llama3.1 8B Instant")
         os.environ["GROQ_API_KEY"] = groq_key

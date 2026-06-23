@@ -7,11 +7,13 @@ services:
     envVars:
       - key: PORT
         value: 8001
-      - key: GROQ_API_KEY
-        value: "gsk_..."
-      - key: SERPER_API_KEY
-        value: "c8ac..."
-      - key: OPENAI_API_KEY
-        value: "NA"
       - key: GEMINI_API_KEY
+        sync: false  # Set in Railway/Render dashboard
+      - key: GEMINI_IMAGE_API_KEY
+        sync: false  # Set in Railway/Render dashboard
+      - key: GROQ_API_KEY
+        value: "NA"
+      - key: SERPER_API_KEY
+        sync: false  # Set in Railway/Render dashboard
+      - key: OPENAI_API_KEY
         value: "NA"
