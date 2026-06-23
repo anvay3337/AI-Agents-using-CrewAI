@@ -721,7 +721,7 @@ Your final answer MUST be structured EXACTLY as:
     gemini_embed_key = (os.environ.get("GEMINI_IMAGE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
     if gemini_embed_key and gemini_embed_key != "NA":
         embedder_config = {
-            "provider": "google",
+            "provider": "google-generativeai",
             "config": {
                 "model": "models/text-embedding-004",
                 "api_key": gemini_embed_key
