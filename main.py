@@ -716,29 +716,36 @@ Your final answer MUST be structured EXACTLY as:
             )
         tasks.append(infographic_task)
 
-    # Configure embedder dynamically to avoid defaulting to OpenAI
+    # Configure embedder dynamically to avoid defaulting to OpenAI.
+    # Only needed when memory=True; skip entirely when memory is off to avoid
+    # Pydantic validation errors on deployments missing the google-generativeai package.
+    use_memory = False
     embedder_config = None
-    gemini_embed_key = (os.environ.get("GEMINI_IMAGE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
-    if gemini_embed_key and gemini_embed_key != "NA":
-        embedder_config = {
-            "provider": "google-generativeai",
-            "config": {
-                "model": "models/text-embedding-004",
-                "api_key": gemini_embed_key
+    if use_memory:
+        gemini_embed_key = (os.environ.get("GEMINI_IMAGE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
+        if gemini_embed_key and gemini_embed_key != "NA":
+            embedder_config = {
+                "provider": "google-generativeai",
+                "config": {
+                    "model": "models/text-embedding-004",
+                    "api_key": gemini_embed_key
+                }
             }
-        }
 
     # Assemble the crew
-    marketing_crew = Crew(
+    crew_kwargs = dict(
         agents=agents,
         tasks=tasks,
         process=Process.sequential,
         verbose=True,
         cache=False,  # Disabled: Groq rejects cache_breakpoint in messages
         step_callback=check_termination_callback,
-        memory=False,
-        embedder=embedder_config
+        memory=use_memory,
     )
+    if embedder_config:
+        crew_kwargs["embedder"] = embedder_config
+
+    marketing_crew = Crew(**crew_kwargs)
 
 
     return marketing_crew
