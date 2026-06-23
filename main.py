@@ -12,17 +12,22 @@ if hasattr(sys.stderr, 'reconfigure'):
 # --- SSL Fix for network/proxy environments ---
 # Some ISPs and corporate firewalls do SSL inspection which breaks strict SSL.
 # This patches the default SSL context to allow such connections.
-os.environ["PYTHONHTTPSVERIFY"] = "0"
-os.environ["CURL_CA_BUNDLE"] = ""
-os.environ["REQUESTS_CA_BUNDLE"] = ""
+# Only apply this locally; cloud hosting environments like Railway or Render
+# have standard SSL certificates and should not use this patch (as clearing
+# CA bundles breaks outgoing HTTPS requests to LLM APIs).
+if not os.environ.get("RAILWAY_ENVIRONMENT") and not os.environ.get("RENDER"):
+    os.environ["PYTHONHTTPSVERIFY"] = "0"
+    os.environ["CURL_CA_BUNDLE"] = ""
+    os.environ["REQUESTS_CA_BUNDLE"] = ""
 
-_orig_create_default_context = ssl.create_default_context
-def _patched_ssl_context(*args, **kwargs):
-    ctx = _orig_create_default_context(*args, **kwargs)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
-ssl.create_default_context = _patched_ssl_context
+    _orig_create_default_context = ssl.create_default_context
+    def _patched_ssl_context(*args, **kwargs):
+        ctx = _orig_create_default_context(*args, **kwargs)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    ssl.create_default_context = _patched_ssl_context
+
 
 try:
     import urllib3
