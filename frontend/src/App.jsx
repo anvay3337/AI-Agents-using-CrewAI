@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Selectable agents. `default` controls which are pre-checked on load.
+const AGENT_META = [
+  { id: 'researcher', name: 'Market Researcher', desc: 'Web research & trend analysis', default: true },
+  { id: 'writer', name: 'Content Writer', desc: 'Drafts the blog / article', default: true },
+  { id: 'seo', name: 'SEO & Distribution', desc: 'Optimizes + social media plan', default: true },
+  { id: 'scriptwriter', name: 'Video Script Writer', desc: 'YouTube video & Reel scripts', default: false },
+  { id: 'infographic', name: 'Infographic Designer', desc: 'Postable visual graphic + captions', default: false },
+];
+
 function App() {
   const [topic, setTopic] = useState('');
+  const [agents, setAgents] = useState(() =>
+    Object.fromEntries(AGENT_META.map((a) => [a.id, a.default]))
+  );
   const [running, setRunning] = useState(false);
   const [logs, setLogs] = useState([]);
   const [result, setResult] = useState(null);
@@ -15,9 +27,65 @@ function App() {
     }
   }, [logs]);
 
-  const handleSubmit = (e) => {
+  const toggleAgent = (id) => {
+    setAgents((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const selectedAgents = AGENT_META.filter((a) => agents[a.id]).map((a) => a.id);
+
+  const resolveBackendBaseUrl = () => {
+    if (import.meta.env.VITE_API_URL) {
+      return import.meta.env.VITE_API_URL;
+    }
+    const host = window.location.hostname.toLowerCase();
+    const port = window.location.port;
+
+    if ((host === 'localhost' || host === '127.0.0.1') && port !== '8001') {
+      return 'http://localhost:8001';
+    }
+
+    const isStaticHost =
+      host.endsWith('.netlify.app') ||
+      host.endsWith('.vercel.app') ||
+      host.endsWith('.github.io') ||
+      host.endsWith('.gitlab.io') ||
+      host.endsWith('.pages.dev');
+
+    if (isStaticHost) {
+      return 'http://localhost:8001';
+    }
+
+    return '';
+  };
+
+  // Maps a single parsed SSE event onto component state.
+  const handleEvent = (data) => {
+    if (data.type === 'status') {
+      setLogs((prev) => [...prev, data.message]);
+    } else if (data.type === 'agent_start') {
+      setLogs((prev) => [...prev, `🤖 Agent: ${data.agent_name}`]);
+    } else if (data.type === 'tool_start') {
+      setLogs((prev) => [...prev, `🔧 Tool: ${data.tool_name}`]);
+    } else if (data.type === 'tool_end') {
+      setLogs((prev) => [...prev, `✅ Tool Execution Complete.`]);
+    } else if (data.type === 'task_start') {
+      setLogs((prev) => [...prev, `🚀 Task Started: ${data.task_name}`]);
+    } else if (data.type === 'result') {
+      setResult(data.output);
+      setRunning(false);
+    } else if (data.type === 'error') {
+      setError(data.message);
+      setRunning(false);
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!topic.trim()) return;
+    if (selectedAgents.length === 0) {
+      setError('Please select at least one agent to run.');
+      return;
+    }
 
     // Reset state
     setRunning(true);
@@ -25,76 +93,61 @@ function App() {
     setResult(null);
     setError(null);
 
-    const backendBaseUrl = (() => {
-      if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-      }
-      const host = window.location.hostname.toLowerCase();
-      const port = window.location.port;
+    const backendBaseUrl = resolveBackendBaseUrl();
 
-      // Default to localhost:8001 for local Vite dev server
-      if ((host === 'localhost' || host === '127.0.0.1') && port !== '8001') {
-        return 'http://localhost:8001';
-      }
+    try {
+      const resp = await fetch(`${backendBaseUrl}/api/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, enabled_agents: selectedAgents }),
+      });
 
-      // Default to localhost:8001 for known static hosts (Netlify/Vercel) during local tests
-      const isStaticHost = host.endsWith('.netlify.app') ||
-        host.endsWith('.vercel.app') ||
-        host.endsWith('.github.io') ||
-        host.endsWith('.gitlab.io') ||
-        host.endsWith('.pages.dev');
-
-      if (isStaticHost) {
-        return 'http://localhost:8001';
+      if (!resp.ok || !resp.body) {
+        throw new Error(`Backend responded with status ${resp.status}`);
       }
 
-      return '';
-    })();
+      // Read the Server-Sent-Events stream from the POST response body.
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    const backendUrl = `${backendBaseUrl}/api/run?topic=${encodeURIComponent(topic)}`;
-    const eventSource = new EventSource(backendUrl);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop(); // keep incomplete trailing block
 
-        if (data.type === 'status') {
-          setLogs((prev) => [...prev, data.message]);
-        } else if (data.type === 'agent_start') {
-          setLogs((prev) => [...prev, `🤖 Agent: ${data.agent_name}`]);
-        } else if (data.type === 'tool_start') {
-          setLogs((prev) => [...prev, `🔧 Tool: ${data.tool_name}`]);
-        } else if (data.type === 'tool_end') {
-          setLogs((prev) => [...prev, `✅ Tool Execution Complete.`]);
-        } else if (data.type === 'task_start') {
-          setLogs((prev) => [...prev, `🚀 Task Started: ${data.task_name}`]);
-        } else if (data.type === 'result') {
-          setResult(data.output);
-          setRunning(false);
-          eventSource.close();
-        } else if (data.type === 'error') {
-          setError(data.message);
-          setRunning(false);
-          eventSource.close();
+        for (const block of blocks) {
+          const dataLine = block
+            .split('\n')
+            .find((line) => line.startsWith('data:'));
+          if (!dataLine) continue; // skip ping comments etc.
+          const payload = dataLine.slice(5).trim();
+          if (!payload) continue;
+          try {
+            handleEvent(JSON.parse(payload));
+          } catch (err) {
+            console.error('Failed to parse SSE payload:', payload, err);
+          }
         }
-      } catch (err) {
-        console.error('Failed to parse SSE data:', err);
       }
-    };
 
-    eventSource.onerror = (err) => {
-      console.error('EventSource error:', err);
-      setError('Connection lost or failed to connect to backend server. Make sure the backend server is running and accessible.');
       setRunning(false);
-      eventSource.close();
-    };
+    } catch (err) {
+      console.error('Run failed:', err);
+      setError(
+        'Connection lost or failed to connect to backend server. Make sure the backend server is running and accessible.'
+      );
+      setRunning(false);
+    }
   };
 
   // Helper to parse social posts from the final output markdown
   const parseResult = (text) => {
     if (!text) return null;
 
-    // Look for posts
     const facebookMatch = text.match(/\*\*Facebook Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
       text.match(/Facebook Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
     const twitterMatch = text.match(/\*\*Twitter Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
@@ -102,22 +155,31 @@ function App() {
     const instagramMatch = text.match(/\*\*Instagram Post:\*\*\s*\n?\s*["']([\s\S]*?)["'](?=\n\n|\n\*\*\w+)/i) ||
       text.match(/Instagram Post:\s*\n?\s*([\s\S]*?)(?=\n\n|\n\d+\.|\n\*|\n\[Image)/i);
 
+    // Generated infographic image, emitted by the backend as "INFOGRAPHIC_IMAGE: generated/xxx.png"
+    const imageMatch = text.match(/INFOGRAPHIC_IMAGE:\s*([^\s)\]]+\.png)/i);
+
     return {
       facebook: facebookMatch ? facebookMatch[1].trim() : null,
       twitter: twitterMatch ? twitterMatch[1].trim() : null,
       instagram: instagramMatch ? instagramMatch[1].trim() : null,
+      image: imageMatch ? imageMatch[1].trim() : null,
       raw: text
     };
   };
 
   const parsedResult = parseResult(result);
+  const backendBaseUrl = resolveBackendBaseUrl();
+  const infographicUrl =
+    parsedResult && parsedResult.image
+      ? `${backendBaseUrl}/${parsedResult.image.replace(/^\/+/, '')}`
+      : null;
 
   return (
     <div className="app-container">
       <header className="header">
         <h1>Agentic Marketing Crew</h1>
         <p>
-          Leverage local Llama 3.2 models and CrewAI to perform research, write high-converting articles, optimize for SEO, and draft a multi-channel distribution plan.
+          Pick the agents you want, then run research, articles, SEO, video scripts, and infographics — powered by CrewAI.
         </p>
       </header>
 
@@ -153,6 +215,30 @@ function App() {
               </button>
             </div>
           </div>
+
+          {/* Agent selector */}
+          <div className="input-group">
+            <label>Agents to run</label>
+            <div className="agent-grid">
+              {AGENT_META.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  className={`agent-chip ${agents[a.id] ? 'active' : ''}`}
+                  onClick={() => toggleAgent(a.id)}
+                  disabled={running}
+                >
+                  <span className="agent-check" aria-hidden="true">
+                    {agents[a.id] ? '✓' : ''}
+                  </span>
+                  <span className="agent-text">
+                    <span className="agent-name">{a.name}</span>
+                    <span className="agent-desc">{a.desc}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         </form>
       </section>
 
@@ -170,7 +256,7 @@ function App() {
         <div className="terminal-body">
           {logs.length === 0 ? (
             <div className="terminal-placeholder">
-              {running ? "Initializing Llama 3.2 model..." : "Enter a topic and click Start Run to trigger the multi-agent workflow."}
+              {running ? "Initializing model..." : "Select your agents, enter a topic, and click Start Run."}
             </div>
           ) : (
             logs.map((log, index) => (
@@ -211,17 +297,25 @@ function App() {
               </svg>
               Final Generated Report & Strategy
             </h2>
+            {infographicUrl && (
+              <div className="infographic-display">
+                <img src={infographicUrl} alt="Generated infographic" />
+                <a className="infographic-download" href={infographicUrl} download target="_blank" rel="noreferrer">
+                  ⬇ Download infographic
+                </a>
+              </div>
+            )}
             <div className="content-block">
-              {/* Render formatting replacing double returns with line breaks */}
               {result.split('\n').map((para, i) => {
-                if (para.startsWith('### ')) {
+                if (para.includes('INFOGRAPHIC_IMAGE:')) {
+                  return null; // raw marker is rendered as the image above
+                } else if (para.startsWith('### ')) {
                   return <h3 key={i}>{para.replace('### ', '')}</h3>;
                 } else if (para.startsWith('## ')) {
                   return <h2 key={i}>{para.replace('## ', '')}</h2>;
                 } else if (para.startsWith('* ') || para.startsWith('- ')) {
                   return <li key={i} style={{ marginLeft: '1rem', marginBottom: '0.25rem' }}>{para.substring(2)}</li>;
                 } else if (para.trim()) {
-                  // Replace custom bold markup
                   const boldRegex = /\*\*(.*?)\*\*/g;
                   const parts = para.split(boldRegex);
                   return (
@@ -304,7 +398,7 @@ function App() {
 
                 {!parsedResult.facebook && !parsedResult.twitter && !parsedResult.instagram && (
                   <p style={{ color: '#64748b', fontSize: '0.9rem', fontStyle: 'italic' }}>
-                    No parsed social posts found. Visual rendering matches the full text format in the main window.
+                    No parsed social posts found. The full text output is shown in the main window.
                   </p>
                 )}
               </div>

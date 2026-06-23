@@ -12,9 +12,11 @@ import queue
 import threading
 import json
 import asyncio
+import os
 from fastapi import FastAPI, Query
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from typing import Optional, List
@@ -36,11 +38,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve generated infographic images (created by the Infographic agent's Gemini tool).
+_GENERATED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated")
+os.makedirs(_GENERATED_DIR, exist_ok=True)
+app.mount("/generated", StaticFiles(directory=_GENERATED_DIR), name="generated")
+
+# Serve vendored frontend libraries (React/ReactDOM/Babel) locally instead of
+# from unpkg.com — the CDN is unreliable on this network and a failed download
+# leaves the dashboard blank. See /vendor/*.js referenced in index.html.
+_VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor")
+os.makedirs(_VENDOR_DIR, exist_ok=True)
+app.mount("/vendor", StaticFiles(directory=_VENDOR_DIR), name="vendor")
+
 @app.get("/", response_class=HTMLResponse)
 def read_index():
     """Serves the React frontend dashboard."""
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+
+_FAVICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "favicon.png")
+
+@app.get("/favicon.png")
+def favicon():
+    """Serves the dashboard favicon (referenced by index.html)."""
+    return FileResponse(_FAVICON_PATH, media_type="image/png")
 
 
 ANSI_ESCAPE = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
@@ -82,6 +104,10 @@ def clean_and_parse_line(line):
         agent_id = None
         if "Researcher" in agent_name:
             agent_id = "researcher"
+        elif "Script" in agent_name:
+            agent_id = "scriptwriter"
+        elif "Infographic" in agent_name:
+            agent_id = "infographic"
         elif "Creator" in agent_name or "Writer" in agent_name:
             agent_id = "creator"
         elif "Specialist" in agent_name or "SEO" in agent_name:
@@ -181,6 +207,7 @@ class CampaignRequest(BaseModel):
     topic: Optional[str] = None
     blog_draft: Optional[str] = None
     research_report: Optional[str] = None
+    content: Optional[str] = None
     enabled_agents: List[str] = ["researcher", "writer", "seo"]
 
 @app.post("/api/run")
@@ -215,14 +242,34 @@ def run_crew(request: CampaignRequest):
                 inputs["blog_draft"] = request.blog_draft
             if request.research_report:
                 inputs["research_report"] = request.research_report
-                
+
+            # Script writer / infographic agents may run standalone and reference
+            # a {content} placeholder; always provide the key to avoid interpolation errors.
+            standalone_creative = (
+                any(a in request.enabled_agents for a in ("scriptwriter", "infographic"))
+                and not any(a in request.enabled_agents for a in ("researcher", "writer", "seo"))
+            )
+            if request.content is not None or standalone_creative:
+                inputs["content"] = request.content or request.topic or ""
+
             crew = create_marketing_crew(
                 enabled_agents=request.enabled_agents,
                 blog_draft=request.blog_draft,
-                research_report=request.research_report
+                research_report=request.research_report,
+                content=request.content
             )
             res = crew.kickoff(inputs=inputs)
-            execution_result["output"] = str(res)
+            # Concatenate every task's output so the UI shows the work of each
+            # enabled agent (not just the final task in the sequence).
+            outputs = []
+            if hasattr(crew, "tasks"):
+                for task in crew.tasks:
+                    task_out = getattr(task, "output", None)
+                    raw = getattr(task_out, "raw", None) if task_out else None
+                    if raw:
+                        role = getattr(getattr(task, "agent", None), "role", "Agent")
+                        outputs.append(f"## {role}\n\n{raw}\n")
+            execution_result["output"] = "\n".join(outputs) if outputs else str(res)
             execution_result["status"] = "success"
         except Exception as e:
             # Check if this was a termination request and we have partial outputs

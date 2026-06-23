@@ -50,6 +50,13 @@ except Exception as e:
     print(f"⚠️ httpx patch failed: {e}")
 
 
+# --- Smart App Control / pywin32 compatibility shim ---
+# Must run BEFORE importing crewai (crewai -> portalocker -> pywin32). On machines
+# where Smart App Control blocks the unsigned pywin32 DLL, this provides a
+# ctypes/kernel32 fallback so the backend can still import. No-op otherwise.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import win_sac_shim  # noqa: E402,F401
+
 from crewai.tools import tool
 from crewai_tools import SerperDevTool
 from dotenv import load_dotenv
@@ -65,6 +72,17 @@ try:
     import time as _time
     import litellm as _litellm
     from litellm.exceptions import RateLimitError as _RateLimitError
+
+    # Transient network/server errors worth retrying (a dropped TLS connection,
+    # e.g. "[SSL: UNEXPECTED_EOF_WHILE_READING]", surfaces as InternalServerError /
+    # APIConnectionError). We intentionally do NOT retry Auth/BadRequest errors.
+    _TRANSIENT_ERRORS = []
+    for _exc_name in ("InternalServerError", "ServiceUnavailableError",
+                      "APIConnectionError", "Timeout"):
+        _exc = getattr(_litellm.exceptions, _exc_name, None)
+        if isinstance(_exc, type):
+            _TRANSIENT_ERRORS.append(_exc)
+    _TRANSIENT_ERRORS = tuple(_TRANSIENT_ERRORS)
 
     _orig_completion = _litellm.completion
 
@@ -94,7 +112,9 @@ try:
             args[1] = _strip_cache_keys_from_messages(args[1])
             args = tuple(args)
 
-        # Auto-retry with sleep on rate limits (up to 10 attempts)
+        # Auto-retry with sleep on rate limits (up to 10 attempts) and on
+        # transient connection/server errors (exponential backoff, up to 6).
+        _transient_tries = 0
         for _attempt in range(10):
             try:
                 return _orig_completion(*args, **kwargs)
@@ -104,6 +124,14 @@ try:
                 _match = _re.search(r'try again in ([0-9.]+)s', _msg)
                 _wait = float(_match.group(1)) + 3 if _match else 35
                 print(f"\n⏳ [Rate Limit] Groq TPM limit hit. Sleeping {_wait:.1f}s then retrying... (attempt {_attempt+1}/10)")
+                _time.sleep(_wait)
+                continue
+            except _TRANSIENT_ERRORS as _te:
+                _transient_tries += 1
+                if _transient_tries > 6:
+                    raise
+                _wait = min(2 ** _transient_tries, 30)
+                print(f"\n🔁 [Transient] Groq {type(_te).__name__}: {str(_te)[:80]} — retrying in {_wait}s... ({_transient_tries}/6)")
                 _time.sleep(_wait)
                 continue
         return _orig_completion(*args, **kwargs)  # final attempt, let it raise
@@ -207,7 +235,103 @@ def seo_keyword_tool(topic: str) -> str:
     # Mock SEO keyword suggestions based on the topic
     return f"SEO Keywords for '{topic}': best {topic}, {topic} guide, how to use {topic}, trending {topic} 2026. Search Intent: Informational."
 
-def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, research_report: str = None):
+
+# Directory where generated infographic images are written (served by the backend at /generated).
+GENERATED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated")
+
+@tool("Generate Infographic Image")
+def generate_infographic_image_tool(title: str, key_points: str) -> str:
+    """Generates a REAL infographic PNG image using Google Gemini's image model and saves it to the served 'generated/' folder.
+
+    Inputs:
+      - title: a short infographic title (max ~6 words), e.g. 'Intermittent Fasting Benefits'.
+      - key_points: the 4-6 key callouts to feature, ONE PER LINE, formatted 'HEADING — supporting one-liner'.
+
+    Returns a single line 'INFOGRAPHIC_IMAGE: generated/<file>.png' on success,
+    or a string starting with 'IMAGE_ERROR:' on failure.
+    """
+    import re as _re
+    import time as _time
+    import uuid as _uuid
+
+    api_key = os.environ.get("GEMINI_IMAGE_API_KEY", "").strip().strip('"').strip("'")
+    if not api_key or api_key == "NA":
+        return "IMAGE_ERROR: GEMINI_IMAGE_API_KEY is not set in .env."
+
+    try:
+        from google import genai
+        from google.genai import types
+    except Exception as e:
+        return f"IMAGE_ERROR: google-genai SDK unavailable: {e}"
+
+    prompt = (
+        "Create a professional, modern SQUARE (1:1, 1080x1080) social-media INFOGRAPHIC poster.\n"
+        f'Title displayed prominently at the top: "{title}".\n'
+        "Feature the following points as clean icon cards, each with a short bold label and a one-line description:\n"
+        f"{key_points}\n\n"
+        "Design: flat vector illustration style, cohesive modern color palette, strong visual hierarchy, "
+        "generous spacing, simple line icons, HIGH CONTRAST, and crisp LEGIBLE text with every word spelled "
+        "correctly. Suitable for Instagram and LinkedIn. No watermark, no signature."
+    )
+
+    try:
+        client = genai.Client(
+            api_key=api_key,
+            http_options=types.HttpOptions(
+                client_args={"verify": False},
+                async_client_args={"verify": False},
+            ),
+        )
+    except Exception as e:
+        return f"IMAGE_ERROR: could not init Gemini client: {e}"
+
+    # Try newest/best image models first, then fall back.
+    models = ["gemini-2.5-flash-image", "gemini-3-pro-image", "imagen-4.0-fast-generate-001"]
+    last_err = "no model produced an image"
+
+    for model in models:
+        for attempt in range(3):
+            try:
+                data = None
+                if model.startswith("imagen"):
+                    resp = client.models.generate_images(
+                        model=model,
+                        prompt=prompt,
+                        config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1"),
+                    )
+                    if resp.generated_images:
+                        data = resp.generated_images[0].image.image_bytes
+                else:
+                    resp = client.models.generate_content(model=model, contents=prompt)
+                    for part in resp.candidates[0].content.parts:
+                        inline = getattr(part, "inline_data", None)
+                        if inline and getattr(inline, "data", None):
+                            data = inline.data
+                            break
+
+                if data:
+                    os.makedirs(GENERATED_DIR, exist_ok=True)
+                    slug = _re.sub(r"\W+", "_", title).strip("_")[:40] or "infographic"
+                    fname = f"{slug}_{_uuid.uuid4().hex[:8]}.png"
+                    with open(os.path.join(GENERATED_DIR, fname), "wb") as f:
+                        f.write(data)
+                    print(f"🖼️  Infographic image generated via {model}: generated/{fname}")
+                    return f"INFOGRAPHIC_IMAGE: generated/{fname}"
+
+                last_err = f"{model}: response contained no image bytes"
+                break  # retrying a clean no-image response won't help
+            except Exception as e:
+                msg = str(e)
+                last_err = f"{model}: {type(e).__name__}: {msg[:180]}"
+                # Retry transient rate limits / SSL drops; otherwise move to next model.
+                if "RESOURCE_EXHAUSTED" in msg or "429" in msg or "UNEXPECTED_EOF" in msg:
+                    _time.sleep(3)
+                    continue
+                break
+
+    return f"IMAGE_ERROR: {last_err}"
+
+def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, research_report: str = None, content: str = None):
     if enabled_agents is None:
         enabled_agents = ["researcher", "writer", "seo"]
 
@@ -313,6 +437,34 @@ TONE:
         allow_delegation=False
     )
 
+    # Agent 4: Video / Reel Script Writer
+    script_writer = Agent(
+        role="Professional Video Script Writer",
+        goal="Write tight, high-retention scripts for YouTube videos and Instagram/TikTok reels that hook viewers in the first 3 seconds and drive them to a clear call-to-action.",
+        backstory="""You are a viral short-form and long-form video scriptwriter who has written for creators with millions of followers.
+You understand pacing, pattern interrupts, the 'hook → value → payoff → CTA' structure, and how spoken-word scripts differ from written articles.
+You write scripts that are meant to be SPOKEN ALOUD on camera — conversational, punchy, and easy to perform — and you always pair the spoken lines with concrete on-screen visual / B-roll direction.""",
+        tools=[],
+        llm=agent_llm,
+        verbose=True,
+        max_iter=1,
+        allow_delegation=False
+    )
+
+    # Agent 5: Infographic Generator (generates a REAL image via Google Gemini)
+    infographic_designer = Agent(
+        role="Social Infographic Designer",
+        goal="Distill a topic or article into the most important, unique, and shareable facts, then generate a real, ready-to-post infographic IMAGE for Instagram, LinkedIn and Twitter/X using the image tool.",
+        backstory="""You are a senior information designer who turns dense content into scroll-stopping visual graphics.
+You pick the 4-6 most non-obvious, high-value data points worth visualising and phrase them as short punchy callouts.
+You then use the 'Generate Infographic Image' tool to produce an actual PNG image (not code), and you write platform-specific captions to accompany it.""",
+        tools=[generate_infographic_image_tool],
+        llm=agent_llm,
+        verbose=True,
+        max_iter=3,
+        allow_delegation=False
+    )
+
     # Task 1: Research (Market Researcher)
     research_task = Task(
         description="""Compile a comprehensive market research report about: '{topic}'. 
@@ -380,6 +532,68 @@ Your final response MUST be structured exactly as follows:
         agent=marketing_specialist
     )
 
+    # Task 5: Script Writing (Script Writer) — chained version uses prior content
+    script_task = Task(
+        description="""Write a complete, production-ready video script about: '{topic}'.
+Use the article / content produced in the previous steps as your source material for facts and angle.
+
+Write ONE script optimised for a short-form vertical video (Instagram Reel / YouTube Short / TikTok, 30-60 seconds)
+AND a short outline for a longer YouTube video on the same topic.
+
+Standards:
+- Open with a scroll-stopping HOOK in the first 1-2 lines (a bold claim, a surprising stat, or a sharp question).
+- Write spoken lines the way a creator would actually say them — conversational, punchy, no corporate filler.
+- Pair every beat with concrete ON-SCREEN VISUAL / B-roll direction in [brackets].
+- Build tension/value through the middle, then land a clear payoff and a single, specific call-to-action.
+
+Format your answer EXACTLY as:
+## Reel / Short Script (30-60s)
+**Hook:** [spoken hook line]  [on-screen visual]
+**Body:**
+- [spoken line]  [on-screen visual]
+- ...
+**CTA:** [spoken call-to-action]  [on-screen visual]
+**Suggested caption + hashtags:** ...
+**On-screen text overlays:** ...
+
+## YouTube Video Outline (longer form)
+- Title ideas (3)
+- Hook (first 15s, spoken)
+- Main talking points / segments (with rough timestamps)
+- Outro + CTA
+""",
+        expected_output="A reel/short script with hook, body beats, visual direction and CTA, plus a longer YouTube video outline.",
+        agent=script_writer
+    )
+
+    # Task 6: Infographic (Infographic Designer) — generates a REAL image via Gemini
+    infographic_task = Task(
+        description="""Create a ready-to-post visual infographic IMAGE about: '{topic}'.
+Use the article / content produced in the previous steps to extract the most important and UNIQUE details — prefer non-obvious facts, numbers, comparisons or steps over generic statements.
+
+Do these steps IN ORDER:
+1. Choose a short infographic TITLE (max 6 words).
+2. Write the 4-6 standout callouts, ONE PER LINE, each formatted 'HEADING — supporting one-liner' (max 8 words per heading).
+3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument). The tool returns a line like 'INFOGRAPHIC_IMAGE: generated/xxx.png'.
+4. Write platform-tailored captions.
+
+Your final answer MUST be structured EXACTLY as:
+## Infographic Key Points
+- **HEADING** — supporting line
+- ...
+
+## Infographic Image
+[Paste the EXACT line returned by the tool here, e.g. 'INFOGRAPHIC_IMAGE: generated/xxx.png'. If the tool returned an error, paste that error line instead.]
+
+## Captions
+**Instagram:** ...
+**LinkedIn:** ...
+**Twitter/X:** ...
+""",
+        expected_output="A list of key callouts, the exact 'INFOGRAPHIC_IMAGE: ...' line from the image tool, and platform-specific captions.",
+        agent=infographic_designer
+    )
+
     def check_termination_callback(step_output):
         if is_termination_requested():
             raise RuntimeError("Campaign execution terminated by user.")
@@ -418,6 +632,84 @@ Ensure the optimized content is of the highest professional standard: lead with 
             )
         tasks.append(refine_task)
         tasks.append(distribute_task)
+
+    # Determine whether any prior agent will produce content the later
+    # creative agents can chain from within this same run.
+    has_prior_content = any(a in enabled_agents for a in ("researcher", "writer", "seo"))
+
+    if "scriptwriter" in enabled_agents:
+        agents.append(script_writer)
+        if not has_prior_content:
+            # Standalone: read user-supplied content (fall back to topic) directly
+            script_task = Task(
+                description="""Write a complete, production-ready video script about: '{topic}'.
+Source material / details to base the script on:
+{content}
+
+Write ONE script optimised for a short-form vertical video (Instagram Reel / YouTube Short / TikTok, 30-60 seconds)
+AND a short outline for a longer YouTube video on the same topic.
+
+Standards:
+- Open with a scroll-stopping HOOK in the first 1-2 lines (a bold claim, a surprising stat, or a sharp question).
+- Write spoken lines the way a creator would actually say them — conversational, punchy, no corporate filler.
+- Pair every beat with concrete ON-SCREEN VISUAL / B-roll direction in [brackets].
+- Build tension/value through the middle, then land a clear payoff and a single, specific call-to-action.
+
+Format your answer EXACTLY as:
+## Reel / Short Script (30-60s)
+**Hook:** [spoken hook line]  [on-screen visual]
+**Body:**
+- [spoken line]  [on-screen visual]
+- ...
+**CTA:** [spoken call-to-action]  [on-screen visual]
+**Suggested caption + hashtags:** ...
+**On-screen text overlays:** ...
+
+## YouTube Video Outline (longer form)
+- Title ideas (3)
+- Hook (first 15s, spoken)
+- Main talking points / segments (with rough timestamps)
+- Outro + CTA
+""",
+                expected_output="A reel/short script with hook, body beats, visual direction and CTA, plus a longer YouTube video outline.",
+                agent=script_writer
+            )
+        tasks.append(script_task)
+
+    if "infographic" in enabled_agents:
+        agents.append(infographic_designer)
+        if not has_prior_content:
+            # Standalone: read user-supplied content (fall back to topic) directly
+            infographic_task = Task(
+                description="""Create a ready-to-post visual infographic IMAGE about: '{topic}'.
+Source material / details to extract facts from:
+{content}
+
+Extract the most important and UNIQUE details — prefer non-obvious facts, numbers, comparisons or steps over generic statements.
+
+Do these steps IN ORDER:
+1. Choose a short infographic TITLE (max 6 words).
+2. Write the 4-6 standout callouts, ONE PER LINE, each formatted 'HEADING — supporting one-liner' (max 8 words per heading).
+3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument). The tool returns a line like 'INFOGRAPHIC_IMAGE: generated/xxx.png'.
+4. Write platform-tailored captions.
+
+Your final answer MUST be structured EXACTLY as:
+## Infographic Key Points
+- **HEADING** — supporting line
+- ...
+
+## Infographic Image
+[Paste the EXACT line returned by the tool here, e.g. 'INFOGRAPHIC_IMAGE: generated/xxx.png'. If the tool returned an error, paste that error line instead.]
+
+## Captions
+**Instagram:** ...
+**LinkedIn:** ...
+**Twitter/X:** ...
+""",
+                expected_output="A list of key callouts, the exact 'INFOGRAPHIC_IMAGE: ...' line from the image tool, and platform-specific captions.",
+                agent=infographic_designer
+            )
+        tasks.append(infographic_task)
 
     # Assemble the crew
     marketing_crew = Crew(

@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+server.log
+gemini-webapi-mcp-main/

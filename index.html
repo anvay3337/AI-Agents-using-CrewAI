@@ -6,12 +6,12 @@
   <title>Agentic Marketing Crew Dashboard</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   
-  <!-- Load React and ReactDOM from CDN -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  
+  <!-- Load React and ReactDOM from local /vendor (was unpkg.com — CDN unreliable on this network) -->
+  <script src="/vendor/react.production.min.js"></script>
+  <script src="/vendor/react-dom.production.min.js"></script>
+
   <!-- Load Babel for browser-side JSX compilation -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="/vendor/babel.min.js"></script>
 
   <!-- Google Fonts & Monospace font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -992,7 +992,9 @@
       const [enabledAgents, setEnabledAgents] = useState({
         researcher: true,
         writer: true,
-        seo: true
+        seo: true,
+        scriptwriter: false,
+        infographic: false
       });
       const [blogDraft, setBlogDraft] = useState('');
       const [researchReport, setResearchReport] = useState('');
@@ -1090,7 +1092,7 @@
         setEnabledAgents(prev => {
           const next = { ...prev, [key]: !prev[key] };
           // Ensure at least one agent is enabled
-          if (!next.researcher && !next.writer && !next.seo) {
+          if (!next.researcher && !next.writer && !next.seo && !next.scriptwriter && !next.infographic) {
             return prev;
           }
           return next;
@@ -1101,7 +1103,7 @@
         e.preventDefault();
         
         // Dynamic validation
-        const needsTopic = enabledAgents.researcher || (!enabledAgents.writer && enabledAgents.seo);
+        const needsTopic = enabledAgents.researcher || enabledAgents.scriptwriter || enabledAgents.infographic || (!enabledAgents.writer && enabledAgents.seo);
         const needsResearchReport = !enabledAgents.researcher && enabledAgents.writer;
         const needsBlogDraft = !enabledAgents.researcher && !enabledAgents.writer && enabledAgents.seo;
 
@@ -1124,7 +1126,9 @@
           research: enabledAgents.researcher ? 'pending' : 'skipped',
           writing: enabledAgents.writer ? 'pending' : 'skipped',
           seo: enabledAgents.seo ? 'pending' : 'skipped',
-          distribution: enabledAgents.seo ? 'pending' : 'skipped'
+          distribution: enabledAgents.seo ? 'pending' : 'skipped',
+          script: enabledAgents.scriptwriter ? 'pending' : 'skipped',
+          infographic: enabledAgents.infographic ? 'pending' : 'skipped'
         });
 
         // Build list of active agent keys
@@ -1132,6 +1136,8 @@
         if (enabledAgents.researcher) enabledList.push('researcher');
         if (enabledAgents.writer) enabledList.push('writer');
         if (enabledAgents.seo) enabledList.push('seo');
+        if (enabledAgents.scriptwriter) enabledList.push('scriptwriter');
+        if (enabledAgents.infographic) enabledList.push('infographic');
 
         const payload = {
           topic: needsTopic ? topic : null,
@@ -1619,10 +1625,48 @@
                       <span className="agent-toggle-role">Optimization & Distribution</span>
                     </div>
                     <div className="agent-checkbox-wrapper">
-                      <input 
-                        type="checkbox" 
-                        checked={enabledAgents.seo} 
-                        onChange={() => {}} 
+                      <input
+                        type="checkbox"
+                        checked={enabledAgents.seo}
+                        onChange={() => {}}
+                        disabled={running}
+                      />
+                      <span className="agent-checkbox-slider"></span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`agent-toggle-card ${enabledAgents.scriptwriter ? 'active' : ''}`}
+                    onClick={() => toggleAgent('scriptwriter')}
+                  >
+                    <div className="agent-toggle-info">
+                      <span className="agent-toggle-name">🎬 Video Script Writer</span>
+                      <span className="agent-toggle-role">Reels & YouTube Scripts</span>
+                    </div>
+                    <div className="agent-checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        checked={enabledAgents.scriptwriter}
+                        onChange={() => {}}
+                        disabled={running}
+                      />
+                      <span className="agent-checkbox-slider"></span>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`agent-toggle-card ${enabledAgents.infographic ? 'active' : ''}`}
+                    onClick={() => toggleAgent('infographic')}
+                  >
+                    <div className="agent-toggle-info">
+                      <span className="agent-toggle-name">📊 Infographic Designer</span>
+                      <span className="agent-toggle-role">Generates a Real Image</span>
+                    </div>
+                    <div className="agent-checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        checked={enabledAgents.infographic}
+                        onChange={() => {}}
                         disabled={running}
                       />
                       <span className="agent-checkbox-slider"></span>
@@ -1633,7 +1677,7 @@
 
               {/* Dynamic Inputs Based on Agent Selection */}
               {(() => {
-                const needsTopic = enabledAgents.researcher || (!enabledAgents.writer && enabledAgents.seo);
+                const needsTopic = enabledAgents.researcher || enabledAgents.scriptwriter || enabledAgents.infographic || (!enabledAgents.writer && enabledAgents.seo);
                 const needsResearchReport = !enabledAgents.researcher && enabledAgents.writer;
                 const needsBlogDraft = !enabledAgents.researcher && !enabledAgents.writer && enabledAgents.seo;
 
