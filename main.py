@@ -716,6 +716,18 @@ Your final answer MUST be structured EXACTLY as:
             )
         tasks.append(infographic_task)
 
+    # Configure embedder dynamically to avoid defaulting to OpenAI
+    embedder_config = None
+    gemini_embed_key = (os.environ.get("GEMINI_IMAGE_API_KEY") or os.environ.get("GEMINI_API_KEY", "")).strip().strip('"').strip("'")
+    if gemini_embed_key and gemini_embed_key != "NA":
+        embedder_config = {
+            "provider": "google",
+            "config": {
+                "model": "models/text-embedding-004",
+                "api_key": gemini_embed_key
+            }
+        }
+
     # Assemble the crew
     marketing_crew = Crew(
         agents=agents,
@@ -723,8 +735,11 @@ Your final answer MUST be structured EXACTLY as:
         process=Process.sequential,
         verbose=True,
         cache=False,  # Disabled: Groq rejects cache_breakpoint in messages
-        step_callback=check_termination_callback
+        step_callback=check_termination_callback,
+        memory=False,
+        embedder=embedder_config
     )
+
 
     return marketing_crew
 
