@@ -747,7 +747,8 @@ Use the article / content produced in the previous steps to extract the most imp
 Do these steps IN ORDER:
 1. Choose a short infographic TITLE (max 6 words).
 2. Write the 4-6 standout callouts, ONE PER LINE, each formatted 'HEADING — supporting one-liner' (max 8 words per heading).
-3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument). The tool returns a line like 'INFOGRAPHIC_IMAGE: generated/xxx.png'.
+3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument).
+   CRITICAL: The tool creates a dynamic filename containing a random UUID (e.g. 'generated/infographic_a1b2c3d4.png'). You DO NOT know the filename in advance. You MUST execute the tool to find out the actual path. DO NOT guess, fabricate, or use a placeholder filename.
 4. Write platform-tailored captions.
 
 Your final answer MUST be structured EXACTLY as:
@@ -756,7 +757,7 @@ Your final answer MUST be structured EXACTLY as:
 - ...
 
 ## Infographic Image
-[Paste the EXACT line returned by the tool here, e.g. 'INFOGRAPHIC_IMAGE: generated/xxx.png'. If the tool returned an error, paste that error line instead.]
+[Paste the EXACT output line returned by the tool here. This MUST start with 'INFOGRAPHIC_IMAGE: generated/' followed by the actual generated filename containing the UUID. If the tool returned an error, paste that error line instead.]
 
 ## Captions
 **Instagram:** ...
@@ -864,7 +865,8 @@ Extract the most important and UNIQUE details — prefer non-obvious facts, numb
 Do these steps IN ORDER:
 1. Choose a short infographic TITLE (max 6 words).
 2. Write the 4-6 standout callouts, ONE PER LINE, each formatted 'HEADING — supporting one-liner' (max 8 words per heading).
-3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument). The tool returns a line like 'INFOGRAPHIC_IMAGE: generated/xxx.png'.
+3. Call the 'Generate Infographic Image' tool EXACTLY ONCE, passing the title and the callouts (as the key_points argument).
+   CRITICAL: The tool creates a dynamic filename containing a random UUID (e.g. 'generated/infographic_a1b2c3d4.png'). You DO NOT know the filename in advance. You MUST execute the tool to find out the actual path. DO NOT guess, fabricate, or use a placeholder filename.
 4. Write platform-tailored captions.
 
 Your final answer MUST be structured EXACTLY as:
@@ -873,7 +875,7 @@ Your final answer MUST be structured EXACTLY as:
 - ...
 
 ## Infographic Image
-[Paste the EXACT line returned by the tool here, e.g. 'INFOGRAPHIC_IMAGE: generated/xxx.png'. If the tool returned an error, paste that error line instead.]
+[Paste the EXACT output line returned by the tool here. This MUST start with 'INFOGRAPHIC_IMAGE: generated/' followed by the actual generated filename containing the UUID. If the tool returned an error, paste that error line instead.]
 
 ## Captions
 **Instagram:** ...
