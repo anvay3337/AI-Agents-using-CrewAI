@@ -125,10 +125,10 @@ try:
                 return _orig_completion(*args, **kwargs)
             except _RateLimitError as _rle:
                 _msg = str(_rle)
-                # Parse "try again in X.XXs" from error message
-                _match = _re.search(r'try again in ([0-9.]+)s', _msg)
+                # Parse "try again in X.XXs" or "retry in X.XXs" from error message
+                _match = _re.search(r'(?:try again in|retry in) ([0-9.]+)s', _msg)
                 _wait = float(_match.group(1)) + 3 if _match else 35
-                print(f"\n⏳ [Rate Limit] Groq TPM limit hit. Sleeping {_wait:.1f}s then retrying... (attempt {_attempt+1}/10)")
+                print(f"\n⏳ [Rate Limit] API limit hit. Sleeping {_wait:.1f}s then retrying... (attempt {_attempt+1}/10)")
                 _time.sleep(_wait)
                 continue
             except _TRANSIENT_ERRORS as _te:
@@ -258,83 +258,246 @@ def generate_infographic_image_tool(title: str, key_points: str) -> str:
     import re as _re
     import time as _time
     import uuid as _uuid
+    import platform
 
     api_key = os.environ.get("GEMINI_IMAGE_API_KEY", "").strip().strip('"').strip("'")
+    
+    fallback_reason = None
     if not api_key or api_key == "NA":
-        return "IMAGE_ERROR: GEMINI_IMAGE_API_KEY is not set in .env."
+        fallback_reason = "GEMINI_IMAGE_API_KEY is not set or is NA in .env"
+    
+    if not fallback_reason:
+        try:
+            from google import genai
+            from google.genai import types
+        except Exception as e:
+            fallback_reason = f"google-genai SDK unavailable: {e}"
 
-    try:
-        from google import genai
-        from google.genai import types
-    except Exception as e:
-        return f"IMAGE_ERROR: google-genai SDK unavailable: {e}"
-
-    prompt = (
-        "Create a professional, modern SQUARE (1:1, 1080x1080) social-media INFOGRAPHIC poster.\n"
-        f'Title displayed prominently at the top: "{title}".\n'
-        "Feature the following points as clean icon cards, each with a short bold label and a one-line description:\n"
-        f"{key_points}\n\n"
-        "Design: flat vector illustration style, cohesive modern color palette, strong visual hierarchy, "
-        "generous spacing, simple line icons, HIGH CONTRAST, and crisp LEGIBLE text with every word spelled "
-        "correctly. Suitable for Instagram and LinkedIn. No watermark, no signature."
-    )
-
-    try:
-        client = genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(
-                client_args={"verify": False},
-                async_client_args={"verify": False},
-            ),
+    if not fallback_reason:
+        prompt = (
+            "Create a professional, modern SQUARE (1:1, 1080x1080) social-media INFOGRAPHIC poster.\n"
+            f'Title displayed prominently at the top: "{title}".\n'
+            "Feature the following points as clean icon cards, each with a short bold label and a one-line description:\n"
+            f"{key_points}\n\n"
+            "Design: flat vector illustration style, cohesive modern color palette, strong visual hierarchy, "
+            "generous spacing, simple line icons, HIGH CONTRAST, and crisp LEGIBLE text with every word spelled "
+            "correctly. Suitable for Instagram and LinkedIn. No watermark, no signature."
         )
-    except Exception as e:
-        return f"IMAGE_ERROR: could not init Gemini client: {e}"
 
-    # Try newest/best image models first, then fall back.
-    models = ["gemini-2.5-flash-image", "gemini-3-pro-image", "imagen-4.0-fast-generate-001"]
-    last_err = "no model produced an image"
+        try:
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(
+                    client_args={"verify": False},
+                    async_client_args={"verify": False},
+                ),
+            )
+            
+            # Try newest/best image models first, then fall back.
+            models = ["gemini-2.5-flash-image", "gemini-3-pro-image", "imagen-4.0-fast-generate-001"]
+            last_err = "no model produced an image"
+            success = False
 
-    for model in models:
-        for attempt in range(3):
-            try:
-                data = None
-                if model.startswith("imagen"):
-                    resp = client.models.generate_images(
-                        model=model,
-                        prompt=prompt,
-                        config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1"),
-                    )
-                    if resp.generated_images:
-                        data = resp.generated_images[0].image.image_bytes
+            for model in models:
+                if success:
+                    break
+                for attempt in range(3):
+                    try:
+                        data = None
+                        if model.startswith("imagen"):
+                            resp = client.models.generate_images(
+                                model=model,
+                                prompt=prompt,
+                                config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1"),
+                            )
+                            if resp.generated_images:
+                                data = resp.generated_images[0].image.image_bytes
+                        else:
+                            resp = client.models.generate_content(model=model, contents=prompt)
+                            for part in resp.candidates[0].content.parts:
+                                inline = getattr(part, "inline_data", None)
+                                if inline and getattr(inline, "data", None):
+                                    data = inline.data
+                                    break
+
+                        if data:
+                            os.makedirs(GENERATED_DIR, exist_ok=True)
+                            slug = _re.sub(r"\W+", "_", title).strip("_")[:40] or "infographic"
+                            fname = f"{slug}_{_uuid.uuid4().hex[:8]}.png"
+                            with open(os.path.join(GENERATED_DIR, fname), "wb") as f:
+                                f.write(data)
+                            print(f"🖼️  Infographic image generated via {model}: generated/{fname}")
+                            return f"INFOGRAPHIC_IMAGE: generated/{fname}"
+
+                        last_err = f"{model}: response contained no image bytes"
+                        break  # retrying a clean no-image response won't help
+                    except Exception as e:
+                        msg = str(e)
+                        last_err = f"{model}: {type(e).__name__}: {msg[:180]}"
+                        # Retry transient rate limits / SSL drops; otherwise move to next model.
+                        if "RESOURCE_EXHAUSTED" in msg or "429" in msg or "UNEXPECTED_EOF" in msg:
+                            _time.sleep(3)
+                            continue
+                        break
+            fallback_reason = f"All Gemini image models failed. Last error: {last_err}"
+        except Exception as e:
+            fallback_reason = f"Gemini client initialization / run failed: {e}"
+
+    # --- FALLBACK: Render beautiful infographic programmatically via PIL/Pillow ---
+    print(f"⚠️ Image generation fallback triggered: {fallback_reason}")
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        os.makedirs(GENERATED_DIR, exist_ok=True)
+        
+        width, height = 1080, 1080
+        # Dark Slate background
+        bg_color = (30, 41, 59) 
+        image = Image.new("RGB", (width, height), bg_color)
+        draw = ImageDraw.Draw(image)
+        
+        # Resolve fonts dynamically based on OS
+        sys_root = os.environ.get("SystemRoot", "C:\\Windows")
+        font_path_reg = os.path.join(sys_root, "Fonts", "arial.ttf")
+        font_path_bold = os.path.join(sys_root, "Fonts", "arialbd.ttf")
+        
+        if not os.path.exists(font_path_reg):
+            if platform.system() == "Darwin":
+                font_path_reg = "/Library/Fonts/Arial.ttf"
+                font_path_bold = "/Library/Fonts/Arial Bold.ttf"
+            else:
+                paths = [
+                    ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+                    ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")
+                ]
+                font_path_reg, font_path_bold = None, None
+                for r_p, b_p in paths:
+                    if os.path.exists(r_p):
+                        font_path_reg = r_p
+                        font_path_bold = b_p
+                        break
+                        
+        try:
+            if font_path_reg and os.path.exists(font_path_reg):
+                font_title = ImageFont.truetype(font_path_bold, 44)
+                font_heading = ImageFont.truetype(font_path_bold, 24)
+                font_body = ImageFont.truetype(font_path_reg, 18)
+                font_footer = ImageFont.truetype(font_path_reg, 14)
+            else:
+                font_title = font_heading = font_body = font_footer = ImageFont.load_default()
+        except Exception:
+            font_title = font_heading = font_body = font_footer = ImageFont.load_default()
+            
+        # Draw Header container
+        draw.rounded_rectangle(
+            [50, 40, width - 50, 160],
+            radius=15,
+            fill=(15, 23, 42),
+            outline=(59, 130, 246), # Neon blue border
+            width=2
+        )
+        title_text = title.upper()
+        try:
+            title_w = draw.textlength(title_text, font=font_title)
+        except AttributeError:
+            title_w = len(title_text) * 12
+        draw.text(((width - title_w) / 2, 70), title_text, fill=(255, 255, 255), font=font_title)
+        
+        # Parse callout points
+        points = []
+        for line in key_points.strip().split("\n"):
+            line = line.strip().lstrip("-* ").strip()
+            if not line:
+                continue
+            if " — " in line:
+                parts = line.split(" — ", 1)
+            elif " - " in line:
+                parts = line.split(" - ", 1)
+            else:
+                parts = [line, ""]
+            heading = parts[0].strip()
+            desc = parts[1].strip() if len(parts) > 1 else ""
+            points.append((heading, desc))
+            
+        card_margin = 25
+        card_w = width - 100
+        start_y = 190
+        card_h = min(120, (height - start_y - 80) / max(len(points), 1))
+        
+        # Harmonious indicators colors
+        colors = [
+            (96, 165, 250),  # Blue
+            (52, 211, 153),  # Green
+            (251, 146, 60),  # Orange
+            (192, 132, 252), # Purple
+            (248, 113, 113), # Red
+            (45, 212, 191)   # Teal
+        ]
+        
+        for idx, (heading, desc) in enumerate(points):
+            y_top = start_y + idx * (card_h + card_margin)
+            y_bottom = y_top + card_h
+            
+            # Card background
+            draw.rounded_rectangle(
+                [50, y_top, width - 50, y_bottom],
+                radius=10,
+                fill=(15, 23, 42),
+                outline=(51, 65, 85),
+                width=1
+            )
+            
+            # Indicator bar on left side of the card
+            indicator_color = colors[idx % len(colors)]
+            draw.rounded_rectangle(
+                [50, y_top, 65, y_bottom],
+                radius=10,
+                fill=indicator_color
+            )
+            draw.rectangle([58, y_top, 65, y_bottom], fill=indicator_color)
+            
+            # Simple circular icon node
+            draw.ellipse([85, y_top + (card_h / 2) - 10, 105, y_top + (card_h / 2) + 10], fill=indicator_color)
+            
+            # Heading text
+            draw.text((130, y_top + 15), heading, fill=(255, 255, 255), font=font_heading)
+            
+            # Body text wrapping
+            words = desc.split(" ")
+            lines = []
+            curr_line = ""
+            for word in words:
+                test_line = curr_line + " " + word if curr_line else word
+                try:
+                    line_w = draw.textlength(test_line, font=font_body)
+                except AttributeError:
+                    line_w = len(test_line) * 8
+                if line_w < (card_w - 120):
+                    curr_line = test_line
                 else:
-                    resp = client.models.generate_content(model=model, contents=prompt)
-                    for part in resp.candidates[0].content.parts:
-                        inline = getattr(part, "inline_data", None)
-                        if inline and getattr(inline, "data", None):
-                            data = inline.data
-                            break
-
-                if data:
-                    os.makedirs(GENERATED_DIR, exist_ok=True)
-                    slug = _re.sub(r"\W+", "_", title).strip("_")[:40] or "infographic"
-                    fname = f"{slug}_{_uuid.uuid4().hex[:8]}.png"
-                    with open(os.path.join(GENERATED_DIR, fname), "wb") as f:
-                        f.write(data)
-                    print(f"🖼️  Infographic image generated via {model}: generated/{fname}")
-                    return f"INFOGRAPHIC_IMAGE: generated/{fname}"
-
-                last_err = f"{model}: response contained no image bytes"
-                break  # retrying a clean no-image response won't help
-            except Exception as e:
-                msg = str(e)
-                last_err = f"{model}: {type(e).__name__}: {msg[:180]}"
-                # Retry transient rate limits / SSL drops; otherwise move to next model.
-                if "RESOURCE_EXHAUSTED" in msg or "429" in msg or "UNEXPECTED_EOF" in msg:
-                    _time.sleep(3)
-                    continue
-                break
-
-    return f"IMAGE_ERROR: {last_err}"
+                    lines.append(curr_line)
+                    curr_line = word
+            if curr_line:
+                lines.append(curr_line)
+                
+            desc_text = "\n".join(lines[:2]) # Max 2 lines
+            draw.text((130, y_top + 50), desc_text, fill=(148, 163, 184), font=font_body)
+            
+        # Draw Footer
+        footer_text = "AGENTS MARKETING CREW  |  POWERED BY CREWAI & PILLOW"
+        try:
+            footer_w = draw.textlength(footer_text, font=font_footer)
+        except AttributeError:
+            footer_w = len(footer_text) * 7
+        draw.text(((width - footer_w) / 2, height - 40), footer_text, fill=(71, 85, 105), font=font_footer)
+        
+        slug = _re.sub(r"\W+", "_", title).strip("_")[:40] or "infographic"
+        fname = f"{slug}_{_uuid.uuid4().hex[:8]}.png"
+        out_path = os.path.join(GENERATED_DIR, fname)
+        image.save(out_path)
+        print(f"🖼️  Infographic fallback image generated via Pillow: generated/{fname}")
+        return f"INFOGRAPHIC_IMAGE: generated/{fname}"
+    except Exception as fallback_err:
+        return f"IMAGE_ERROR: {fallback_reason} (Pillow fallback also failed: {fallback_err})"
 
 def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, research_report: str = None, content: str = None):
     if enabled_agents is None:
@@ -357,6 +520,7 @@ def create_marketing_crew(enabled_agents: list = None, blog_draft: str = None, r
             model="gemini/gemini-2.5-flash",
             temperature=0.1,
             api_key=gemini_key,
+            is_litellm=True,
         )
     elif groq_key and groq_key != "NA":
         print("🚀 Using High-Performance Cloud LLM: Groq Llama3.1 8B Instant")
