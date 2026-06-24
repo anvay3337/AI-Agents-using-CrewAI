@@ -1393,15 +1393,23 @@
           return null;
         };
 
+        const imageMatch = text.match(/INFOGRAPHIC\\?_IMAGE:\s*([^\s)\]]+\.png)/i);
+
         return {
           facebook: extractPost('Facebook Post') || extractPost('Facebook'),
           twitter: extractPost('Twitter Post') || extractPost('Twitter/X Post') || extractPost('Twitter/X') || extractPost('Twitter'),
           instagram: extractPost('Instagram Post') || extractPost('Instagram'),
-          quora: extractPost('Quora Post') || extractPost('Quora Answer') || extractPost('Quora')
+          quora: extractPost('Quora Post') || extractPost('Quora Answer') || extractPost('Quora'),
+          image: imageMatch ? imageMatch[1].trim() : null
         };
       };
 
       const parsedResult = parseResult(result);
+
+      const infographicUrl =
+        parsedResult && parsedResult.image
+          ? getApiUrl(`/${parsedResult.image.replace(/^\/+/, '')}`)
+          : null;
 
       // Nodes for visual progress flow
       const tasksList = [
@@ -1885,9 +1893,19 @@
                     </button>
                   </div>
                 </div>
+                {infographicUrl && (
+                  <div className="infographic-display" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                    <img src={infographicUrl} alt="Generated Infographic" style={{ maxWidth: '100%', width: '540px', borderRadius: '1rem', border: '1px solid rgba(255, 255, 255, 0.1)', boxShadow: '0 15px 40px -10px rgba(0, 0, 0, 0.6)' }} />
+                    <a className="infographic-download" href={infographicUrl} download target="_blank" rel="noreferrer" style={{ color: '#a5b4fc', fontSize: '0.9rem', fontWeight: '600', textDecoration: 'none', padding: '0.5rem 1rem', border: '1px solid rgba(129, 140, 248, 0.4)', borderRadius: '0.5rem', transition: 'all 0.2s ease' }}>
+                      ⬇ Download infographic
+                    </a>
+                  </div>
+                )}
                 <div className="content-block">
                   {result.split('\n').map((para, i) => {
-                    if (para.startsWith('### ')) {
+                    if (para.toLowerCase().replace(/\\/g, '').includes('infographic_image:')) {
+                      return null;
+                    } else if (para.startsWith('### ')) {
                       return <h3 key={i}>{para.replace('### ', '')}</h3>;
                     } else if (para.startsWith('## ')) {
                       return <h2 key={i}>{para.replace('## ', '')}</h2>;

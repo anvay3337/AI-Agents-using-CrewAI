@@ -764,7 +764,8 @@ Your final answer MUST be structured EXACTLY as:
 **Twitter/X:** ...
 """,
         expected_output="A list of key callouts, the exact 'INFOGRAPHIC_IMAGE: ...' line from the image tool, and platform-specific captions.",
-        agent=infographic_designer
+        agent=infographic_designer,
+        tools=[generate_infographic_image_tool]
     )
 
     def check_termination_callback(step_output):
@@ -880,7 +881,8 @@ Your final answer MUST be structured EXACTLY as:
 **Twitter/X:** ...
 """,
                 expected_output="A list of key callouts, the exact 'INFOGRAPHIC_IMAGE: ...' line from the image tool, and platform-specific captions.",
-                agent=infographic_designer
+                agent=infographic_designer,
+                tools=[generate_infographic_image_tool]
             )
         tasks.append(infographic_task)
 
